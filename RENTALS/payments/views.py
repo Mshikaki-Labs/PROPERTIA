@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
 
 # Create your views here.
 from django.shortcuts import render
@@ -13,21 +14,24 @@ from tenants.models import Tenant
 import csv
 from datetime import datetime
 
+@login_required
 def payment_list(request):
     if request.method == "POST":
-        form = PaymentForm(request.POST)
+        form = PaymentForm(request.POST, user=request.user)
         if form.is_valid():
-            form.save()
+            payment = form.save(commit=False)
+            payment.user = request.user
+            payment.save()
             return redirect('payments:payment_list')
     else:
-        form = PaymentForm()
+        form = PaymentForm(user=request.user)
 
     # Get filters from GET parameters
     selected_property = request.GET.get('property', '')
     selected_status = request.GET.get('status', '')
     
     # Apply filters
-    payments = Payment.objects.all().order_by('-date')
+    payments = Payment.objects.filter(user=request.user).order_by('-date')
     
     if selected_property:
         payments = payments.filter(property_id=selected_property)
@@ -35,7 +39,7 @@ def payment_list(request):
     if selected_status:
         payments = payments.filter(status=selected_status)
     
-    properties = Property.objects.all()
+    properties = Property.objects.filter(user=request.user)
     
     return render(request, 'payments/payments_view.html', {
         'payments': payments,
@@ -71,6 +75,11 @@ def delete_payments(request):
 @require_POST
 def upload_payments(request):
     """Upload payments from CSV or XLSX file"""
+    def parse_decimal(value):
+        if value is None or str(value).strip() == '':
+            raise ValueError('Missing amount')
+        return float(str(value).replace(',', '').strip())
+
     if 'file' not in request.FILES:
         return JsonResponse({'success': False, 'message': 'No file provided'})
     
@@ -81,12 +90,10 @@ def upload_payments(request):
         rows = []
         
         if filename.endswith('.csv'):
-            # Handle CSV
             decoded_file = file.read().decode('utf-8').splitlines()
             reader = csv.DictReader(decoded_file)
             rows = list(reader)
         elif filename.endswith('.xlsx'):
-            # Handle XLSX
             try:
                 import openpyxl
                 from openpyxl import load_workbook
@@ -95,16 +102,14 @@ def upload_payments(request):
                 wb = load_workbook(io.BytesIO(file.read()))
                 ws = wb.active
                 
-                # Get headers from first row
                 headers = [cell.value for cell in ws[1]]
                 
-                # Convert rows to dictionaries
                 for row in ws.iter_rows(min_row=2, values_only=False):
                     row_dict = {}
                     for idx, header in enumerate(headers):
                         if header:
                             row_dict[header.lower().strip()] = row[idx].value
-                    if any(row_dict.values()):  # Only if row has data
+                    if any(row_dict.values()):
                         rows.append(row_dict)
             except ImportError:
                 return JsonResponse({'success': False, 'message': 'openpyxl is not installed. Please use CSV format or contact admin.'})
@@ -114,16 +119,13 @@ def upload_payments(request):
         if not rows:
             return JsonResponse({'success': False, 'message': 'File is empty'})
         
-        # Validate and create payments
         created_count = 0
         errors = []
         
-        for idx, row in enumerate(rows, start=2):  # start=2 because row 1 is headers
+        for idx, row in enumerate(rows, start=2):
             try:
-                # Normalize keys to lowercase
                 row_lower = {k.lower().strip(): v for k, v in row.items()}
                 
-                # Check required fields
                 property_name = row_lower.get('property')
                 tenant_name = row_lower.get('tenant')
                 amount = row_lower.get('amount')
@@ -133,16 +135,12 @@ def upload_payments(request):
                     errors.append(f'Row {idx}: Missing required fields (property, tenant, amount, date)')
                     continue
                 
-                # Get property
-                try:
-                    property_obj = Property.objects.get(name__iexact=property_name)
-                except Property.DoesNotExist:
-                    errors.append(f'Row {idx}: Property "{property_name}" not found')
+                property_obj = Property.objects.filter(name__iexact=property_name, user=request.user).first()
+                if not property_obj:
+                    errors.append(f'Row {idx}: Property "{property_name}" not found for this user')
                     continue
                 
-                # Get tenant
                 try:
-                    # Try to find tenant by first and last name or full name
                     tenant_name_str = str(tenant_name).strip()
                     if ' ' in tenant_name_str:
                         first_name, last_name = tenant_name_str.rsplit(' ', 1)
@@ -154,21 +152,18 @@ def upload_payments(request):
                 except Tenant.DoesNotExist:
                     errors.append(f'Row {idx}: Tenant "{tenant_name}" not found')
                     continue
-                except:
+                except Exception:
                     errors.append(f'Row {idx}: Tenant "{tenant_name}" not found')
                     continue
                 
-                # Parse amount
                 try:
-                    amount_val = float(amount)
+                    amount_val = parse_decimal(amount)
                 except ValueError:
-                    errors.append(f'Row {idx}: Invalid amount format')
+                    errors.append(f'Row {idx}: Invalid amount format "{amount}"')
                     continue
                 
-                # Parse date
                 try:
                     if isinstance(date_str, str):
-                        # Try multiple date formats
                         for fmt in ['%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', '%Y/%m/%d', '%m-%d-%Y', '%d.%m.%Y']:
                             try:
                                 date_obj = datetime.strptime(date_str.strip(), fmt).date()
@@ -184,8 +179,8 @@ def upload_payments(request):
                     errors.append(f'Row {idx}: Error parsing date - {str(e)}')
                     continue
                 
-                # Create payment
                 payment_data = {
+                    'user': request.user,
                     'property': property_obj,
                     'tenant': tenant_obj,
                     'amount': amount_val,
@@ -204,8 +199,15 @@ def upload_payments(request):
         message = f'Successfully created {created_count} payments'
         if errors:
             message += f'. {len(errors)} errors: ' + '; '.join(errors[:3])
-        
-        return JsonResponse({'success': True, 'count': created_count, 'message': message})
+
+        response = {
+            'success': created_count > 0 or not errors,
+            'count': created_count,
+            'message': message,
+            'errors': errors,
+            'invalid_rows': len(errors),
+        }
+        return JsonResponse(response)
         
     except Exception as e:
         return JsonResponse({'success': False, 'message': f'Error processing file: {str(e)}'})

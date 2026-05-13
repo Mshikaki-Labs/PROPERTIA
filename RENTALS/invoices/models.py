@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 # Create your models here.
 import uuid
@@ -10,6 +11,7 @@ class Invoice(models.Model):
     STATUS_CHOICES = [('Paid', 'Paid'), ('Partially Paid', 'Partially Paid'), ('Unpaid', 'Unpaid')]
     TYPE_CHOICES = [('Rent', 'Rent'), ('Water', 'Water'), ('Service', 'Service')]
 
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     invoice_number = models.CharField(max_length=50, unique=True, editable=False)
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE)
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE)

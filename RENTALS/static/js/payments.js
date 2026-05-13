@@ -168,10 +168,18 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert(`Successfully uploaded ${data.count} payments`);
+                    let message = `Successfully uploaded ${data.count} payments`;
+                    if (data.errors && data.errors.length) {
+                        message += '\n\nWarnings:\n' + data.errors.slice(0, 5).join('\n');
+                    }
+                    alert(message);
                     location.reload();
                 } else {
-                    alert(data.message || 'Failed to upload payments');
+                    let errorMsg = data.message || 'Failed to upload payments';
+                    if (data.errors && data.errors.length) {
+                        errorMsg += '\n\n' + data.errors.slice(0, 5).join('\n');
+                    }
+                    alert(errorMsg);
                 }
             })
             .catch(error => {

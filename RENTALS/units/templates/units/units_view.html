@@ -60,21 +60,22 @@
                 </thead>
                 <tbody>
                     {% for unit in units %}
+                    {% with assigned_tenant=unit.get_assigned_tenant %}
                     <tr class="align-middle">
                         <td class="ps-4"><input type="checkbox" class="form-check-input unit-checkbox" value="{{ unit.id }}"></td>
                         <td class="fw-bold">{{ unit.name }}</td>
                         <td>{{ unit.property.name }}</td>
                         <td>{{ unit.rent_amount }}</td>
                         <td>
-                            {% if unit.get_assigned_tenant %}
+                            {% if assigned_tenant %}
                                 <span class="badge bg-success text-white">occupied</span>
                             {% else %}
                                 <span class="badge bg-warning-subtle text-warning">vacant</span>
                             {% endif %}
                         </td>
                         <td>
-                            {% if unit.get_assigned_tenant %}
-                                {{ unit.get_tenant_display_name }}
+                            {% if assigned_tenant %}
+                                {{ assigned_tenant.first_name }} {{ assigned_tenant.last_name }}
                             {% else %}
                                 <span class="text-muted">---</span>
                             {% endif %}
@@ -87,6 +88,7 @@
                             {% endif %}
                         </td>
                     </tr>
+                    {% endwith %}
                     {% empty %}
                     <tr><td colspan="7" class="text-center py-4">No units found.</td></tr>
                     {% endfor %}
@@ -178,6 +180,15 @@
                         <select id="assignTenantSelect" name="tenant_id" class="form-select" required>
                             <option value="">-- Select a Tenant --</option>
                         </select>
+                        <div id="assignTenantInfo" class="form-text text-muted mt-2">Choose an available tenant for this property.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="startDate" class="form-label fw-bold">Lease Start Date</label>
+                        <input type="date" id="startDate" name="start_date" class="form-control" value="{{ today_date }}" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="depositHeld" class="form-label fw-bold">Deposit Held</label>
+                        <input type="number" id="depositHeld" name="deposit_held" class="form-control" step="0.01" placeholder="0.00">
                     </div>
                 </div>
                 <div class="modal-footer border-0 px-4 pb-4">
@@ -251,127 +262,6 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    // ======================
-    // ASSIGN TENANT FUNCTIONALITY
-    // ======================
-    assignButtons.forEach(button => {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            const unitId = this.getAttribute('data-unit-id');
-            const unitName = this.getAttribute('data-unit-name');
-            
-            // Set unit info in modal
-            document.getElementById('assignUnitId').value = unitId;
-            document.getElementById('assignUnitName').textContent = unitName;
-            
-            // Fetch available tenants
-            fetch(`/units/assign/${unitId}/`, {
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                }
-            })
-            .then(response => response.json())
-            .then(data => {
-                const tenantSelect = document.getElementById('assignTenantSelect');
-                tenantSelect.innerHTML = '<option value="">-- Select a Tenant --</option>';
-                
-                if (data.tenants && data.tenants.length > 0) {
-                    data.tenants.forEach(tenant => {
-                        const option = document.createElement('option');
-                        option.value = tenant.id;
-                        option.textContent = `${tenant.first_name} ${tenant.last_name}`;
-                        tenantSelect.appendChild(option);
-                    });
-                } else {
-                    const option = document.createElement('option');
-                    option.textContent = 'No available tenants';
-                    option.disabled = true;
-                    tenantSelect.appendChild(option);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('Failed to load tenants');
-            });
-        });
-    });
-    
-    // Handle assign form submission
-    if (assignTenantForm) {
-        assignTenantForm.addEventListener('submit', function(e) {
-            e.preventDefault();
-            
-            const unitId = document.getElementById('assignUnitId').value;
-            const tenantId = document.getElementById('assignTenantSelect').value;
-            
-            if (!tenantId) {
-                alert('Please select a tenant');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('tenant_id', tenantId);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-            
-            fetch(`/units/assign/${unitId}/`, {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert(data.message);
-                    location.reload();
-                } else {
-                    alert(data.message || 'Failed to assign tenant');
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while assigning the tenant');
-            });
-        });
-    }
-    
-    // ======================
-    // DETACH TENANT FUNCTIONALITY
-    // ======================
-    detachButtons.forEach(button => {
-        button.addEventListener('click', function(e) {
-            e.preventDefault();
-            const unitId = this.getAttribute('data-unit-id');
-            const unitName = this.getAttribute('data-unit-name');
-            
-            if (confirm(`Are you sure you want to detach the tenant from ${unitName}?`)) {
-                const formData = new FormData();
-                formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-                
-                fetch(`/units/detach/${unitId}/`, {
-                    method: 'POST',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest'
-                    },
-                    body: formData
-                })
-                .then(response => response.json())
-                .then(data => {
-                    if (data.success) {
-                        alert(data.message);
-                        location.reload();
-                    } else {
-                        alert(data.message || 'Failed to detach tenant');
-                    }
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    alert('An error occurred while detaching the tenant');
-                });
-            }
-        });
-    });
     
     // ======================
     // UPLOAD UNITS FUNCTIONALITY
@@ -411,10 +301,18 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert(`Successfully uploaded ${data.count} units`);
+                    let message = `Successfully uploaded ${data.count} units`;
+                    if (data.errors && data.errors.length) {
+                        message += '\n\nWarnings:\n' + data.errors.slice(0, 5).join('\n');
+                    }
+                    alert(message);
                     location.reload();
                 } else {
-                    alert(data.message || 'Failed to upload units');
+                    let errorMsg = data.message || 'Failed to upload units';
+                    if (data.errors && data.errors.length) {
+                        errorMsg += '\n\n' + data.errors.slice(0, 5).join('\n');
+                    }
+                    alert(errorMsg);
                 }
             })
             .catch(error => {

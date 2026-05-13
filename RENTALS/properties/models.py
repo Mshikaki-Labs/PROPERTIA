@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 # Kenya Counties Choices
 KENYA_COUNTIES = [
@@ -55,6 +56,7 @@ KENYA_COUNTIES = [
 
 # Create your models here.
 class Property(models.Model):
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=255)
     address = models.CharField(max_length=255)
     county = models.CharField(max_length=100, choices=KENYA_COUNTIES)

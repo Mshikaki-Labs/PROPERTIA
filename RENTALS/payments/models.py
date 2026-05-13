@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 # Create your models here.
 from properties.models import Property
@@ -10,6 +11,7 @@ class Payment(models.Model):
         ('unclaimed', 'Unclaimed'),
     ]
     
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='payments')
     tenant = models.ForeignKey(Tenant, on_delete=models.CASCADE, related_name='payments')
     amount = models.DecimalField(max_digits=12, decimal_places=2)

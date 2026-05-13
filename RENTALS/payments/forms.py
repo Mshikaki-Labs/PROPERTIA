@@ -12,3 +12,10 @@ class PaymentForm(forms.ModelForm):
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Description'}),
             'date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        if user:
+            self.fields['property'].queryset = self.fields['property'].queryset.filter(user=user)
+            self.fields['tenant'].queryset = self.fields['tenant'].queryset.filter(user=user)

@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
 
 # Create your views here.
 from django.shortcuts import render
@@ -11,6 +12,7 @@ from invoices.models import Invoice
 from payments.models import Payment
 from water_bills.models import WaterBill
 
+@login_required
 def report_generator(request):
     # 1. Get Filters
     property_id = request.GET.get('property')
@@ -18,10 +20,10 @@ def report_generator(request):
     end_date = request.GET.get('end_date')
 
     # 2. Base Querysets
-    properties = Property.objects.all()
-    units = Unit.objects.all()
-    invoices = Invoice.objects.all()
-    payments = Payment.objects.all()
+    properties = Property.objects.filter(user=request.user)
+    units = Unit.objects.filter(user=request.user)
+    invoices = Invoice.objects.filter(user=request.user)
+    payments = Payment.objects.filter(user=request.user)
 
     if property_id:
         units = units.filter(property_id=property_id)
@@ -39,7 +41,7 @@ def report_generator(request):
     
     rent_expected = invoices.filter(type='Rent').aggregate(Sum('amount'))['amount__sum'] or 0
     rent_collected = payments.aggregate(Sum('amount'))['amount__sum'] or 0
-    water_total = WaterBill.objects.filter(unit__property_id=property_id).aggregate(Sum('amount'))['amount__sum'] or 0
+    water_total = WaterBill.objects.filter(user=request.user).aggregate(Sum('amount'))['amount__sum'] or 0
     
     collection_rate = 0
     if rent_expected > 0:

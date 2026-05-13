@@ -26,5 +26,8 @@ class TenantForm(forms.ModelForm):
         }
 
     def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         self.fields['status'].required = False
+        if user:
+            self.fields['property'].queryset = Property.objects.filter(user=user)
