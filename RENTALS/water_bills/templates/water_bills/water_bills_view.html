@@ -43,10 +43,13 @@
                         <td>{{ bill.due_date|date:"d/m/Y" }}</td>
                         <td><span class="badge bg-warning-subtle text-warning rounded-pill px-3">{{ bill.status }}</span></td>
                     </tr>
+                    {% empty %}
+                    <tr><td colspan="9" class="text-center py-4 text-muted">No water bills found.</td></tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        {% include 'templates/includes/pagination.html' %}
     </div>
 </div>
 

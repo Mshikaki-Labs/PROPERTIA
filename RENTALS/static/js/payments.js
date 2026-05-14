@@ -134,23 +134,46 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // 6. Handle Upload Payments Form
     const uploadForm = document.getElementById('uploadPaymentsForm');
+    const uploadMessages = document.getElementById('uploadPaymentsMessages');
+
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = value;
+        return div.innerHTML;
+    }
+
+    function showUploadMessage(type, title, messages = []) {
+        if (!uploadMessages) return;
+
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        const listHtml = messages.length
+            ? `<ul class="mb-0 mt-2">${messages.map(message => `<li>${escapeHtml(message)}</li>`).join('')}</ul>`
+            : '';
+
+        uploadMessages.className = `alert ${alertClass}`;
+        uploadMessages.innerHTML = `<div class="fw-semibold">${escapeHtml(title)}</div>${listHtml}`;
+    }
     
     if (uploadForm) {
         uploadForm.addEventListener('submit', function(e) {
             e.preventDefault();
+            if (uploadMessages) {
+                uploadMessages.className = 'alert d-none';
+                uploadMessages.innerHTML = '';
+            }
             
             const fileInput = document.getElementById('paymentsFile');
             const file = fileInput.files[0];
             
             if (!file) {
-                alert('Please select a file');
+                showUploadMessage('error', 'Please select a file');
                 return;
             }
             
             // Validate file type
             const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
             if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
-                alert('Please upload a CSV or XLSX file');
+                showUploadMessage('error', 'Please upload a CSV or XLSX file');
                 return;
             }
             
@@ -167,16 +190,19 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(response => response.json())
             .then(data => {
+                const detailMessages = data.errors ? data.errors.slice(0, 10) : [];
                 if (data.success) {
-                    alert(`Successfully uploaded ${data.count} payments`);
-                    location.reload();
+                    showUploadMessage('success', data.message || `Successfully uploaded ${data.count} payments`, detailMessages);
+                    if (data.count > 0 && !detailMessages.length) {
+                        uploadForm.reset();
+                    }
                 } else {
-                    alert(data.message || 'Failed to upload payments');
+                    showUploadMessage('error', data.message || 'Failed to upload payments', detailMessages);
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('An error occurred while uploading payments');
+                showUploadMessage('error', 'An error occurred while uploading payments');
             });
         });
     }

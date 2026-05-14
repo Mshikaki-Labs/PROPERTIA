@@ -3,26 +3,29 @@ from .models import Property
 from .forms import PropertyForm
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
 
-
+@login_required
 def property_list(request):
     if request.method == "POST":
         form = PropertyForm(request.POST)
         if form.is_valid():
-            form.save()
+            property_obj = form.save(commit=False)
+            property_obj.user = request.user
+            property_obj.save()
             return redirect('properties:properties_home')
     
-    properties = Property.objects.all()
+    properties = Property.objects.filter(user=request.user)
     form = PropertyForm()
     return render(request, 'properties/propertyIndex.html', {
         'properties': properties,
         'form': form
     })
 
-
+@login_required
 def edit_property(request, pk):
     """Edit a property"""
-    property_obj = get_object_or_404(Property, pk=pk)
+    property_obj = get_object_or_404(Property, pk=pk, user=request.user)
     
     if request.method == "POST":
         form = PropertyForm(request.POST, instance=property_obj)

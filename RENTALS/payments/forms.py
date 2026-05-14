@@ -4,11 +4,19 @@ from .models import Payment
 class PaymentForm(forms.ModelForm):
     class Meta:
         model = Payment
-        fields = ['property', 'tenant', 'amount', 'description', 'date']
+        fields = ['property', 'unit', 'code', 'amount', 'description', 'date']
         widgets = {
             'property': forms.Select(attrs={'class': 'form-select', 'placeholder': 'Select Property'}),
-            'tenant': forms.Select(attrs={'class': 'form-select', 'placeholder': 'Select Tenant'}),
+            'unit': forms.Select(attrs={'class': 'form-select', 'placeholder': 'Select House/Unit'}),
+            'code': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Receipt/reference code'}),
             'amount': forms.NumberInput(attrs={'class': 'form-control', 'placeholder': 'Amount'}),
-            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Description'}),
+            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Details'}),
             'date': forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}),
         }
+
+    def __init__(self, *args, **kwargs):
+        user = kwargs.pop('user', None)
+        super().__init__(*args, **kwargs)
+        if user:
+            self.fields['property'].queryset = self.fields['property'].queryset.filter(user=user)
+            self.fields['unit'].queryset = self.fields['unit'].queryset.filter(user=user).select_related('property').order_by('property__name', 'name')

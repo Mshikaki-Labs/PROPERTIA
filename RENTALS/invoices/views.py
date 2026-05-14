@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
+from django.contrib.auth.decorators import login_required
 from datetime import datetime
 from decimal import Decimal
 
@@ -13,7 +14,9 @@ from properties.models import Property
 from units.models import Unit
 from tenants.models import Tenant
 from payments.models import Payment
+from PROPATIA.pagination import paginate_queryset
 
+@login_required
 def invoice_list(request):
     # Handle Single Invoice Generation
     if request.method == "POST" and 'single_generate' in request.POST:
@@ -25,14 +28,14 @@ def invoice_list(request):
             # Validate inputs
             if not unit_id or not due_date_str or not inv_type:
                 return render(request, 'invoices/invoices_view.html', {
-                    'invoices': Invoice.objects.all().order_by('-due_date'),
-                    'properties': Property.objects.all(),
-                    'units': Unit.objects.all(),
+                    'invoices': Invoice.objects.filter(unit__property__user=request.user).order_by('-due_date'),
+                    'properties': Property.objects.filter(user=request.user),
+                    'units': Unit.objects.filter(property__user=request.user),
                     'error': 'Please fill in all fields'
                 })
             
             # Get unit
-            unit = Unit.objects.get(id=unit_id)
+            unit = Unit.objects.get(id=unit_id, property__user=request.user)
             
             # Convert date string to datetime object
             due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
@@ -42,14 +45,15 @@ def invoice_list(request):
             
             if not tenant:
                 return render(request, 'invoices/invoices_view.html', {
-                    'invoices': Invoice.objects.all().order_by('-due_date'),
-                    'properties': Property.objects.all(),
-                    'units': Unit.objects.all(),
+                    'invoices': Invoice.objects.filter(unit__property__user=request.user).order_by('-due_date'),
+                    'properties': Property.objects.filter(user=request.user),
+                    'units': Unit.objects.filter(property__user=request.user),
                     'error': f'No tenant assigned to unit {unit.name}'
                 })
             
             # Create invoice
             Invoice.objects.create(
+                user=request.user,
                 unit=unit,
                 tenant=tenant,
                 amount=unit.rent_amount,
@@ -61,16 +65,16 @@ def invoice_list(request):
         
         except Unit.DoesNotExist:
             return render(request, 'invoices/invoices_view.html', {
-                'invoices': Invoice.objects.all().order_by('-due_date'),
-                'properties': Property.objects.all(),
-                'units': Unit.objects.all(),
+                'invoices': Invoice.objects.filter(unit__property__user=request.user).order_by('-due_date'),
+                'properties': Property.objects.filter(user=request.user),
+                'units': Unit.objects.filter(property__user=request.user),
                 'error': 'Unit not found'
             })
         except Exception as e:
             return render(request, 'invoices/invoices_view.html', {
-                'invoices': Invoice.objects.all().order_by('-due_date'),
-                'properties': Property.objects.all(),
-                'units': Unit.objects.all(),
+                'invoices': Invoice.objects.filter(unit__property__user=request.user).order_by('-due_date'),
+                'properties': Property.objects.filter(user=request.user),
+                'units': Unit.objects.filter(property__user=request.user),
                 'error': f'Error creating invoice: {str(e)}'
             })
     
@@ -84,7 +88,7 @@ def invoice_list(request):
         due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
         
         # Get all units for this property
-        units = Unit.objects.filter(property_id=prop_id)
+        units = Unit.objects.filter(property_id=prop_id, property__user=request.user)
         
         for unit in units:
             # Check if unit has an assigned tenant
@@ -93,6 +97,7 @@ def invoice_list(request):
             if tenant:
                 # Create invoice with the unit's rent amount
                 Invoice.objects.create(
+                    user=request.user,
                     unit=unit,
                     tenant=tenant,
                     amount=unit.rent_amount,  # Use unit's rent amount
@@ -102,11 +107,41 @@ def invoice_list(request):
         
         return redirect('invoices:invoice_list')
 
-    invoices = Invoice.objects.all().order_by('-due_date')
-    return render(request, 'invoices/invoices_view.html', {
-        'invoices': invoices,
-        'properties': Property.objects.all(),
-        'units': Unit.objects.all(),
+    invoices = Invoice.objects.filter(user=request.user).select_related('unit', 'unit__property', 'tenant').order_by('-due_date')
+    selected_property = request.GET.get('property', '')
+    selected_status = request.GET.get('status', '')
+
+    if selected_property:
+        invoices = invoices.filter(unit__property_id=selected_property)
+    if selected_status:
+        invoices = invoices.filter(status=selected_status)
+
+    pagination = paginate_queryset(request, invoices)
+
+    context = {
+        'invoices': pagination['page_obj'],
+        'properties': Property.objects.filter(user=request.user),
+        'units': Unit.objects.filter(user=request.user),
+        'selected_property': selected_property,
+        'selected_status': selected_status,
+    }
+    context.update(pagination)
+    return render(request, 'invoices/invoices_view.html', context)
+
+
+@login_required
+@require_POST
+def delete_invoices(request):
+    """Delete selected invoices."""
+    invoice_ids = request.POST.getlist('invoice_ids[]')
+
+    if not invoice_ids:
+        return JsonResponse({'success': False, 'message': 'No invoices selected'})
+
+    deleted_count, _ = Invoice.objects.filter(id__in=invoice_ids, user=request.user).delete()
+    return JsonResponse({
+        'success': True,
+        'message': f'Successfully deleted {deleted_count} invoice(s)'
     })
 
 
@@ -127,7 +162,7 @@ def get_invoice_payments(request):
         available_payments = Payment.objects.filter(
             tenant=invoice.tenant,
             status='unclaimed'
-        ).values('id', 'amount', 'balance', 'date', 'description')
+        ).values('id', 'amount', 'balance', 'date', 'code', 'description')
         
         # Calculate invoice balance
         remaining_balance = invoice.get_remaining_balance()

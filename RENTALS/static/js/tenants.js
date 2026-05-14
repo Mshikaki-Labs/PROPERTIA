@@ -87,10 +87,18 @@
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert(`Successfully uploaded ${data.count} tenants`);
+                    let message = `Successfully uploaded ${data.count} tenants`;
+                    if (data.errors && data.errors.length) {
+                        message += '\n\nWarnings:\n' + data.errors.slice(0, 5).join('\n');
+                    }
+                    alert(message);
                     window.location.reload();
                 } else {
-                    alert(data.message || 'Failed to upload tenants');
+                    let errorMsg = data.message || 'Failed to upload tenants';
+                    if (data.errors && data.errors.length) {
+                        errorMsg += '\n\n' + data.errors.slice(0, 5).join('\n');
+                    }
+                    alert(errorMsg);
                 }
             })
             .catch(error => {
@@ -147,6 +155,90 @@ document.addEventListener('DOMContentLoaded', function() {
         if (deleteBtn) {
             deleteBtn.style.display = count > 0 ? 'inline-block' : 'none';
         }
+    }
+
+    // 4. Attach unit from tenant row
+    const attachUnitButtons = document.querySelectorAll('.attachUnitBtn');
+    const attachUnitForm = document.getElementById('attachUnitForm');
+    const attachTenantId = document.getElementById('attachTenantId');
+    const attachTenantName = document.getElementById('attachTenantName');
+    const attachUnitSelect = document.getElementById('attachUnitSelect');
+    const attachUnitInfo = document.getElementById('attachUnitInfo');
+
+    attachUnitButtons.forEach(button => {
+        button.addEventListener('click', function(e) {
+            const tenantId = this.dataset.tenantId;
+            const tenantName = this.dataset.tenantName;
+
+            if (!tenantId) return;
+
+            attachTenantId.value = tenantId;
+            attachTenantName.textContent = tenantName;
+            attachUnitInfo.textContent = 'Loading available units...';
+            attachUnitSelect.innerHTML = '<option value="">-- Select a Unit --</option>';
+            attachUnitSelect.disabled = true;
+
+            fetch(`/tenants/available-units/${tenantId}/`, {
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.units && data.units.length > 0) {
+                    data.units.forEach(unit => {
+                        const option = document.createElement('option');
+                        option.value = unit.id;
+                        option.textContent = `${unit.name} (${unit.property__name || 'Property'})`;
+                        attachUnitSelect.appendChild(option);
+                    });
+                    attachUnitInfo.textContent = `${data.units.length} available unit(s) found.`;
+                    attachUnitSelect.disabled = false;
+                } else {
+                    attachUnitInfo.textContent = 'No available units found for this tenant.';
+                }
+            })
+            .catch(error => {
+                console.error('Error loading units:', error);
+                attachUnitInfo.textContent = 'Unable to load units right now.';
+            });
+        });
+    });
+
+    if (attachUnitForm) {
+        attachUnitForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const tenantId = attachTenantId.value;
+            const unitId = attachUnitSelect.value;
+            if (!tenantId || !unitId) {
+                alert('Please select a unit to attach.');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('tenant_id', tenantId);
+            formData.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+
+            fetch(`/units/assign/${unitId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert(data.message || 'Failed to attach unit.');
+                }
+            })
+            .catch(error => {
+                console.error('Error assigning unit:', error);
+                alert('An error occurred while attaching the unit.');
+            });
+        });
     }
 
     // 4. The Delete Fetch

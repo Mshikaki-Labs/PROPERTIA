@@ -33,5 +33,5 @@ urlpatterns = [
     path('properties/', include('properties.urls'), name='properties'),
     path('maintenance/', include('maintenance.urls'), name='maintenance'),
     path('accounts/', include('accounts.urls'), name='accounts'),
-    path('water_bills/', include('water_bills.urls'), name='water_bills'), 
+    path('water_bills/', include('water_bills.urls', namespace='water_bills')),
 ]

@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 # Create your models here.
 from units.models import Unit
@@ -9,6 +10,8 @@ class Tenant(models.Model):
         ('inactive', 'Inactive'),
     ]
 
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    property = models.ForeignKey('properties.Property', on_delete=models.CASCADE, related_name='tenants', blank=True, null=True)
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name='tenants', blank=True, null=True)
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)

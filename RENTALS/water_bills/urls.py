@@ -17,6 +17,8 @@ Including another URLconf
 from django.urls import path
 from . import views  # Import views from the current folder
 
+app_name = 'water_bills'
+
 urlpatterns = [
     # Point to a view function, NOT an include()
     path('', views.water_bill_list, name='water_bills_home'), 
