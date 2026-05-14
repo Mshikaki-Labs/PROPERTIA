@@ -11,6 +11,7 @@ from units.models import Unit
 from invoices.models import Invoice
 from payments.models import Payment
 from water_bills.models import WaterBill
+from PROPATIA.pagination import paginate_queryset
 
 @login_required
 def report_generator(request):
@@ -47,11 +48,14 @@ def report_generator(request):
     if rent_expected > 0:
         collection_rate = (rent_collected / rent_expected) * 100
 
-    # 4. Recent Invoices
-    recent_invoices = invoices.order_by('-due_date')[:5]
+    recent_invoices = invoices.select_related('unit', 'tenant').order_by('-due_date')
+    pagination = paginate_queryset(request, recent_invoices)
 
     context = {
         'properties': properties,
+        'selected_property': property_id,
+        'selected_start_date': start_date,
+        'selected_end_date': end_date,
         'total_units': total_units,
         'occupied': occupied,
         'vacant': vacant,
@@ -59,6 +63,7 @@ def report_generator(request):
         'rent_expected': rent_expected,
         'rent_collected': rent_collected,
         'water_total': water_total,
-        'recent_invoices': recent_invoices,
+        'recent_invoices': pagination['page_obj'],
     }
+    context.update(pagination)
     return render(request, 'reports/report_view.html', context)

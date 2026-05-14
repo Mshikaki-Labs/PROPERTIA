@@ -7,20 +7,36 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2 class="fw-bold">Invoices</h2>
         <div class="d-flex gap-2">
+            <button type="button" id="deleteSelectedInvoicesBtn" class="btn btn-danger" style="display: none;">
+                <i class="bi bi-trash me-1"></i> Delete Selected
+            </button>
             <button class="btn btn-light border" data-bs-toggle="modal" data-bs-target="#bulkModal">Bulk Invoice</button>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#singleModal">Generate Invoice</button>
         </div>
     </div>
 
     <div class="card shadow-sm border-0 mb-4 bg-light">
-        <div class="card-body row g-3">
+        <form method="GET" class="card-body row g-3">
             <div class="col-md-3">
-                <select class="form-select border-0"><option>All Properties</option></select>
+                <select name="property" class="form-select border-0">
+                    <option value="">All Properties</option>
+                    {% for p in properties %}
+                        <option value="{{ p.id }}" {% if selected_property|stringformat:"s" == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+                    {% endfor %}
+                </select>
             </div>
             <div class="col-md-3">
-                <select class="form-select border-0"><option>All Status</option></select>
+                <select name="status" class="form-select border-0">
+                    <option value="">All Status</option>
+                    <option value="Paid" {% if selected_status == "Paid" %}selected{% endif %}>Paid</option>
+                    <option value="Partially Paid" {% if selected_status == "Partially Paid" %}selected{% endif %}>Partially Paid</option>
+                    <option value="Unpaid" {% if selected_status == "Unpaid" %}selected{% endif %}>Unpaid</option>
+                </select>
             </div>
-        </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">FILTER</button>
+            </div>
+        </form>
     </div>
 
     <div class="card shadow-sm border-0">
@@ -28,7 +44,7 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="bg-light">
                     <tr>
-                        <th class="ps-4">Select</th>
+                        <th class="ps-4"><input type="checkbox" id="selectAllInvoices" class="form-check-input"></th>
                         <th>Invoice #</th>
                         <th>Property</th>
                         <th>Unit</th>
@@ -43,7 +59,7 @@
                 <tbody>
                     {% for inv in invoices %}
                     <tr>
-                        <td class="ps-4"><input type="checkbox"></td>
+                        <td class="ps-4"><input type="checkbox" class="form-check-input invoice-checkbox" value="{{ inv.id }}"></td>
                         <td class="small fw-bold">{{ inv.invoice_number }}</td>
                         <td>{{ inv.unit.property.name }}</td>
                         <td>{{ inv.unit.name }}</td>
@@ -71,6 +87,7 @@
                 </tbody>
             </table>
         </div>
+        {% include 'templates/includes/pagination.html' %}
     </div>
 </div>
 
@@ -272,11 +289,84 @@
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
+    const selectAllInvoices = document.getElementById('selectAllInvoices');
+    const deleteSelectedInvoicesBtn = document.getElementById('deleteSelectedInvoicesBtn');
     const attachButtons = document.querySelectorAll('.attachPaymentBtn');
     const paymentSelect = document.getElementById('paymentSelect');
     const attachPaymentBtn = document.getElementById('attachPaymentBtn');
     const attachError = document.getElementById('attachError');
     let currentInvoiceId = null;
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    function toggleDeleteInvoicesButton() {
+        if (!deleteSelectedInvoicesBtn) return;
+        deleteSelectedInvoicesBtn.style.display = document.querySelectorAll('.invoice-checkbox:checked').length > 0 ? 'inline-block' : 'none';
+    }
+
+    if (selectAllInvoices) {
+        selectAllInvoices.addEventListener('change', function() {
+            document.querySelectorAll('.invoice-checkbox').forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            toggleDeleteInvoicesButton();
+        });
+    }
+
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('invoice-checkbox')) {
+            const invoiceCheckboxes = document.querySelectorAll('.invoice-checkbox');
+            const checkedInvoiceCheckboxes = document.querySelectorAll('.invoice-checkbox:checked');
+            if (selectAllInvoices) {
+                selectAllInvoices.checked = invoiceCheckboxes.length > 0 && invoiceCheckboxes.length === checkedInvoiceCheckboxes.length;
+            }
+            toggleDeleteInvoicesButton();
+        }
+    });
+
+    if (deleteSelectedInvoicesBtn) {
+        deleteSelectedInvoicesBtn.addEventListener('click', function() {
+            const selectedIds = Array.from(document.querySelectorAll('.invoice-checkbox:checked')).map(checkbox => checkbox.value);
+            if (!selectedIds.length) return;
+            if (!confirm(`Delete ${selectedIds.length} invoice(s)?`)) return;
+
+            const formData = new FormData();
+            selectedIds.forEach(id => formData.append('invoice_ids[]', id));
+
+            fetch('/invoices/delete/', {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                } else {
+                    alert(data.message || 'Failed to delete invoices');
+                }
+            })
+            .catch(error => {
+                alert('Error deleting invoices');
+            });
+        });
+    }
 
     // Load payments when Attach Payment button is clicked
     attachButtons.forEach(btn => {
@@ -306,7 +396,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     data.payments.forEach(payment => {
                         const option = document.createElement('option');
                         option.value = payment.id;
-                        option.textContent = `KES ${payment.amount} - ${payment.date}${payment.description ? ' (' + payment.description + ')' : ''}`;
+                        const codePrefix = payment.code ? `${payment.code} - ` : '';
+                        option.textContent = `${codePrefix}KES ${payment.amount} - ${payment.date}${payment.description ? ' (' + payment.description + ')' : ''}`;
                         option.dataset.balance = payment.balance;
                         option.dataset.amount = payment.amount;
                         paymentSelect.appendChild(option);

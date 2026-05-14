@@ -8,6 +8,7 @@ from django.http import HttpResponse
 
 from .models import WaterBill
 from units.models import Unit
+from PROPATIA.pagination import paginate_queryset
 
 @login_required
 def water_bill_list(request):
@@ -31,9 +32,14 @@ def water_bill_list(request):
                 rate=rate,
                 due_date=date
             )
-        return redirect('water_bills:list')
+        return redirect('water_bills:water_bills_home')
 
-    return render(request, 'water_bills/water_bills_view.html', {
-        'bills': WaterBill.objects.filter(user=request.user).order_by('-due_date'),
+    bills = WaterBill.objects.filter(user=request.user).select_related('unit', 'unit__property', 'tenant').order_by('-due_date')
+    pagination = paginate_queryset(request, bills)
+
+    context = {
+        'bills': pagination['page_obj'],
         'units': Unit.objects.filter(user=request.user, status='occupied')
-    })
+    }
+    context.update(pagination)
+    return render(request, 'water_bills/water_bills_view.html', context)

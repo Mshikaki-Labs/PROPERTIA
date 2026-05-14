@@ -58,9 +58,11 @@
                         </th>
                         <th>Date</th>
                         <th>Property</th>
+                        <th>House/Unit</th>
                         <th>Tenant</th>
+                        <th>Code</th>
                         <th>Amount</th>
-                        <th>Description</th>
+                        <th>Details</th>
                         <th>Status</th>
                     </tr>
                 </thead>
@@ -72,7 +74,9 @@
                         </td>
                         <td>{{ payment.date|date:"d/m/Y" }}</td>
                         <td>{{ payment.property.name }}</td>
+                        <td>{% if payment.unit %}{{ payment.unit.name }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
                         <td>{{ payment.tenant.first_name }} {{ payment.tenant.last_name }}</td>
+                        <td class="fw-semibold">{{ payment.code|default:"-" }}</td>
                         <td class="fw-bold">KES {{ payment.amount }}</td>
                         <td class="text-muted small">{{ payment.description|default:"-" }}</td>
                         <td>
@@ -83,12 +87,13 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">No payments found matching your criteria.</td>
+                        <td colspan="9" class="text-center py-4 text-muted">No payments found matching your criteria.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        {% include 'templates/includes/pagination.html' %}
     </div>
 </div>
 
@@ -109,9 +114,14 @@
                         {% if form.property.errors %}<div class="text-danger small mt-1">{{ form.property.errors }}</div>{% endif %}
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Tenant</label>
-                        {{ form.tenant }}
-                        {% if form.tenant.errors %}<div class="text-danger small mt-1">{{ form.tenant.errors }}</div>{% endif %}
+                        <label class="form-label fw-bold">House/Unit</label>
+                        {{ form.unit }}
+                        {% if form.unit.errors %}<div class="text-danger small mt-1">{{ form.unit.errors }}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Code</label>
+                        {{ form.code }}
+                        {% if form.code.errors %}<div class="text-danger small mt-1">{{ form.code.errors }}</div>{% endif %}
                     </div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">Amount</label>
@@ -119,7 +129,7 @@
                         {% if form.amount.errors %}<div class="text-danger small mt-1">{{ form.amount.errors }}</div>{% endif %}
                     </div>
                     <div class="mb-3">
-                        <label class="form-label fw-bold">Description</label>
+                        <label class="form-label fw-bold">Details</label>
                         {{ form.description }}
                         {% if form.description.errors %}<div class="text-danger small mt-1">{{ form.description.errors }}</div>{% endif %}
                     </div>
@@ -148,10 +158,11 @@
             <form id="uploadPaymentsForm" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div class="modal-body px-4">
+                    <div id="uploadPaymentsMessages" class="alert d-none" role="alert"></div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">CSV or XLSX File</label>
                         <input type="file" id="paymentsFile" name="file" class="form-control" accept=".csv,.xlsx" required>
-                        <small class="text-muted d-block mt-2"><strong>Required Headers:</strong> property, tenant, amount, date<br><strong>Optional Headers:</strong> description</small>
+                        <small class="text-muted d-block mt-2"><strong>Required Headers:</strong> PROPERTY, HOUSE_NUMNER, DATE, CODE, DETAILS, AMOUNT</small>
                     </div>
                 </div>
                 <div class="modal-footer border-0 px-4 pb-4">

@@ -13,6 +13,7 @@ from properties.models import Property
 from units.models import Unit
 import csv
 from django.contrib.auth.decorators import login_required
+from PROPATIA.pagination import paginate_queryset
 
 @login_required
 def tenant_list(request):
@@ -40,13 +41,17 @@ def tenant_list(request):
 
     tenants = tenants.select_related('property', 'unit').order_by('last_name', 'first_name')
 
-    return render(request, 'tenants/tenants_view.html', {
-        'tenants': tenants,
+    pagination = paginate_queryset(request, tenants)
+
+    context = {
+        'tenants': pagination['page_obj'],
         'form': form,
         'properties': Property.objects.filter(user=request.user),
         'selected_property': property_filter,
         'selected_status': status_filter,
-    })
+    }
+    context.update(pagination)
+    return render(request, 'tenants/tenants_view.html', context)
 
 @login_required
 def edit_tenant(request, pk):
@@ -107,7 +112,7 @@ def tenant_ledger(request, pk):
     payments = Payment.objects.filter(
         user=request.user, 
         tenant=tenant
-    ).order_by('date')
+    ).select_related('unit').order_by('date')
     
     # Build ledger entries (combined invoices and payments with running balance)
     ledger_entries = []
@@ -130,11 +135,16 @@ def tenant_ledger(request, pk):
     
     # Add payments to ledger
     for payment in payments:
+        payment_label = f'Payment {payment.code}' if payment.code else 'Payment'
+        if payment.description:
+            payment_label = f'{payment_label} ({payment.description})'
+        if payment.unit:
+            payment_label = f'{payment_label} - {payment.unit.name}'
         running_balance -= payment.amount
         ledger_entries.append({
             'type': 'payment',
             'date': payment.date,
-            'description': f'Payment ({payment.description or "No description"}) - {payment.status}',
+            'description': f'{payment_label} - {payment.status}',
             'debit': None,
             'credit': payment.amount,
             'balance': running_balance,

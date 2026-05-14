@@ -1,4 +1,4 @@
-{% extends 'dashboard_base.html' %}
+{% extends 'templates/dashboard_base.html' %}
 {% load static %}
 
 {% block extra_css %}
@@ -86,7 +86,7 @@
     <div class="filter-section">
         <h5>Filters</h5>
         <form method="get" id="filterForm" class="row g-3">
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label for="propertyFilter" class="form-label">Property</label>
                 <select class="form-select" id="propertyFilter" name="property" onchange="document.getElementById('filterForm').submit()">
                     <option value="">All Properties</option>
@@ -98,13 +98,13 @@
                 </select>
             </div>
 
-            <div class="col-md-3">
-                <label for="unitFilter" class="form-label">Unit</label>
+            <div class="col-md-2">
+                <label for="unitFilter" class="form-label">House/Unit</label>
                 <select class="form-select" id="unitFilter" name="unit" onchange="document.getElementById('filterForm').submit()">
-                    <option value="">All Units</option>
+                    <option value="">All Houses/Units</option>
                     {% for unit in units %}
                         <option value="{{ unit.id }}" {% if unit.id|stringformat:"s" == selected_unit %}selected{% endif %}>
-                            {{ unit.name }} - {{ unit.property.name }}
+                            {{ unit.name }} ({{ unit.property.name }})
                         </option>
                     {% endfor %}
                 </select>
@@ -122,7 +122,7 @@
                 </select>
             </div>
 
-            <div class="col-md-3">
+            <div class="col-md-2">
                 <label for="statusFilter" class="form-label">Status</label>
                 <select class="form-select" id="statusFilter" name="status" onchange="document.getElementById('filterForm').submit()">
                     <option value="all">All Statuses</option>
@@ -132,7 +132,7 @@
                 </select>
             </div>
 
-            <div class="col-md-2">
+            <div class="col-md-3">
                 <label for="resetBtn" class="form-label">&nbsp;</label>
                 <a href="{% url 'arrears:arrears_report' %}" class="btn btn-outline-secondary w-100">
                     <i class="fas fa-redo"></i> Reset
@@ -169,7 +169,7 @@
                             {% for item in report_data %}
                                 <tr>
                                     <td>
-                                        <strong>{{ item.invoice_number }}</strong>
+                                        <strong>{{ item.invoice.invoice_number }}</strong>
                                     </td>
                                     <td>
                                         {{ item.tenant.first_name }} {{ item.tenant.last_name }}
@@ -211,6 +211,7 @@
                         </tbody>
                     </table>
                 </div>
+                {% include 'templates/includes/pagination.html' %}
             {% else %}
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
                     <i class="fas fa-check-circle"></i>

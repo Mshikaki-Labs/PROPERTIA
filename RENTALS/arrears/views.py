@@ -9,6 +9,7 @@ from tenants.models import Tenant
 from invoices.models import Invoice
 from payments.models import Payment
 from .models import Arrears
+from PROPATIA.pagination import paginate_queryset
 
 
 @login_required
@@ -17,12 +18,12 @@ def arrears_report(request):
     prop_id = request.GET.get('property')
     unit_id = request.GET.get('unit')
     tenant_id = request.GET.get('tenant')
-    status_filter = request.GET.get('status', 'pending')
+    status_filter = request.GET.get('status', 'all')
 
     # 2. Base Query: Start with Arrears records
     arrears_records = Arrears.objects.filter(user=request.user).select_related(
-        'invoice', 'tenant', 'unit'
-    )
+        'invoice', 'tenant', 'unit', 'unit__property'
+    ).order_by('-date_marked')
 
     # 3. Apply Filters
     if prop_id:
@@ -36,35 +37,24 @@ def arrears_report(request):
     if status_filter and status_filter != 'all':
         arrears_records = arrears_records.filter(status=status_filter)
 
-    # 4. Calculate Summary Data
-    report_data = []
-    total_arrears_amount = 0
-    
-    for arrears in arrears_records:
-        report_data.append({
-            'arrears': arrears,
-            'invoice': arrears.invoice,
-            'tenant': arrears.tenant,
-            'unit': arrears.unit,
-            'amount_due': arrears.amount_due,
-            'days_overdue': arrears.days_overdue,
-            'status': arrears.status,
-            'date_marked': arrears.date_marked,
-            'invoice_amount': arrears.invoice.amount,
-            'invoice_number': arrears.invoice.invoice_number,
-        })
-        total_arrears_amount += arrears.amount_due
+    total_arrears_amount = arrears_records.aggregate(total=Sum('amount_due'))['total'] or 0
+    total_records = arrears_records.count()
+    pagination = paginate_queryset(request, arrears_records)
 
     # 5. Get available filter options
     properties = Property.objects.filter(user=request.user)
-    units = Unit.objects.filter(user=request.user, status='occupied')
-    tenants = Tenant.objects.filter(user=request.user, status='active')
+    units = Unit.objects.filter(user=request.user).select_related('property').order_by('property__name', 'name')
+    if prop_id:
+        units = units.filter(property_id=prop_id)
+    tenants = Tenant.objects.filter(user=request.user, status='active').order_by('first_name', 'last_name')
+    if prop_id:
+        tenants = tenants.filter(unit__property_id=prop_id)
 
     # 6. Context
     context = {
-        'report_data': report_data,
+        'report_data': pagination['page_obj'],
         'total_arrears_amount': total_arrears_amount,
-        'total_records': len(report_data),
+        'total_records': total_records,
         'properties': properties,
         'units': units,
         'tenants': tenants,
@@ -74,5 +64,6 @@ def arrears_report(request):
         'selected_status': status_filter,
         'title': 'Arrears Report'
     }
+    context.update(pagination)
 
     return render(request, 'arrears/arrears_report.html', context)

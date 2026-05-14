@@ -14,6 +14,7 @@ from tenants.models import Tenant
 from properties.models import Property
 from django import forms
 from django.contrib.auth.decorators import login_required
+from PROPATIA.pagination import paginate_queryset
 
 class UnitForm(forms.ModelForm):
     class Meta:
@@ -45,7 +46,7 @@ def units_list(request):
     # 3. Filtering Logic (Common to both or just GET)
     units = Unit.objects.filter(user=request.user).select_related('property').prefetch_related(
         Prefetch('tenants', queryset=Tenant.objects.order_by('last_name'), to_attr='prefetched_tenants')
-    )
+    ).order_by('property__name', 'name')
     property_filter = request.GET.get('property')
     status_filter = request.GET.get('status')
     
@@ -55,14 +56,17 @@ def units_list(request):
         units = units.filter(status=status_filter)
             
     today_date = timezone.now().date()
-    # 4. Return the Response
-    return render(request, 'units/units_view.html', {
-        'units': units,
+    pagination = paginate_queryset(request, units)
+
+    context = {
+        'units': pagination['page_obj'],
         'form': form, # This is now guaranteed to exist!
         'properties': Property.objects.filter(user=request.user),
         'tenants': Tenant.objects.filter(user=request.user, unit__isnull=True),
         'today_date': today_date,
-    })
+    }
+    context.update(pagination)
+    return render(request, 'units/units_view.html', context)
 
 
 def assign_tenant(request, pk):
