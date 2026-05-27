@@ -146,6 +146,7 @@
             <form id="uploadUnitsForm" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div class="modal-body px-4">
+                    <div id="uploadUnitsMessages" class="alert d-none" role="alert"></div>
                     <div class="mb-3">
                         <label class="form-label fw-bold">CSV or XLSX File</label>
                         <input type="file" id="unitsFile" name="file" class="form-control" accept=".csv,.xlsx" required>
@@ -154,7 +155,7 @@
                 </div>
                 <div class="modal-footer border-0 px-4 pb-4">
                     <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Upload</button>
+                    <button type="submit" id="uploadSubmitBtn" class="btn btn-primary" disabled>Upload</button>
                 </div>
             </form>
         </div>
@@ -268,23 +269,65 @@ document.addEventListener('DOMContentLoaded', function() {
     // UPLOAD UNITS FUNCTIONALITY
     // ======================
     const uploadForm = document.getElementById('uploadUnitsForm');
+    const uploadMessages = document.getElementById('uploadUnitsMessages');
+    const unitsFile = document.getElementById('unitsFile');
+    const uploadSubmitBtn = document.getElementById('uploadSubmitBtn');
+
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = value;
+        return div.innerHTML;
+    }
+
+    function showUploadMessage(type, title, messages = []) {
+        if (!uploadMessages) return;
+
+        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        const listHtml = messages.length
+            ? `<ul class="mb-0 mt-2">${messages.map(message => `<li>${escapeHtml(message)}</li>`).join('')}</ul>`
+            : '';
+
+        uploadMessages.className = `alert ${alertClass}`;
+        uploadMessages.innerHTML = `<div class="fw-semibold">${escapeHtml(title)}</div>${listHtml}`;
+    }
+
+    // Enable/disable upload button based on file selection
+    if (unitsFile) {
+        unitsFile.addEventListener('change', function() {
+            const file = this.files[0];
+            if (file) {
+                const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+                if ((validTypes.includes(file.type) || file.name.endsWith('.csv') || file.name.endsWith('.xlsx'))) {
+                    uploadSubmitBtn.disabled = false;
+                } else {
+                    uploadSubmitBtn.disabled = true;
+                }
+            } else {
+                uploadSubmitBtn.disabled = true;
+            }
+        });
+    }
     
     if (uploadForm) {
         uploadForm.addEventListener('submit', function(e) {
             e.preventDefault();
+            if (uploadMessages) {
+                uploadMessages.className = 'alert d-none';
+                uploadMessages.innerHTML = '';
+            }
             
             const fileInput = document.getElementById('unitsFile');
             const file = fileInput.files[0];
             
             if (!file) {
-                alert('Please select a file');
+                showUploadMessage('error', 'Please select a file');
                 return;
             }
             
             // Validate file type
             const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
             if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
-                alert('Please upload a CSV or XLSX file');
+                showUploadMessage('error', 'Please upload a CSV or XLSX file');
                 return;
             }
             
@@ -301,24 +344,20 @@ document.addEventListener('DOMContentLoaded', function() {
             })
             .then(response => response.json())
             .then(data => {
+                const detailMessages = data.errors ? data.errors : [];
                 if (data.success) {
-                    let message = `Successfully uploaded ${data.count} units`;
-                    if (data.errors && data.errors.length) {
-                        message += '\n\nWarnings:\n' + data.errors.slice(0, 5).join('\n');
+                    showUploadMessage('success', data.message || `Successfully uploaded ${data.count} units`, detailMessages);
+                    if (data.count > 0 && !detailMessages.length) {
+                        uploadForm.reset();
+                        uploadSubmitBtn.disabled = true;
                     }
-                    alert(message);
-                    location.reload();
                 } else {
-                    let errorMsg = data.message || 'Failed to upload units';
-                    if (data.errors && data.errors.length) {
-                        errorMsg += '\n\n' + data.errors.slice(0, 5).join('\n');
-                    }
-                    alert(errorMsg);
+                    showUploadMessage('error', data.message || 'Failed to upload units', detailMessages);
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('An error occurred while uploading units');
+                showUploadMessage('error', 'An error occurred while uploading units');
             });
         });
     }

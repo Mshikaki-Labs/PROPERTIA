@@ -5,6 +5,8 @@ from django.utils import timezone
 from django.db.models import Prefetch
 import csv
 import json
+from decimal import Decimal, InvalidOperation
+import io
 
 # Create your views here.
 
@@ -156,10 +158,68 @@ def delete_units(request):
 @require_POST
 def upload_units(request):
     """Upload units from CSV or XLSX file"""
+    def normalize_header(header):
+        return ' '.join(str(header).lower().replace('_', ' ').split()).replace(' ', '_')
+
+    def normalize_text(value):
+        if value is None:
+            return ''
+        return str(value).strip()
+
     def parse_decimal(value):
         if value is None or str(value).strip() == '':
             raise ValueError('Missing rent_amount')
-        return float(str(value).replace(',', '').strip())
+        try:
+            return Decimal(str(value).replace(',', '').strip())
+        except (InvalidOperation, ValueError):
+            raise ValueError('Invalid rent_amount')
+
+    def read_csv_rows(uploaded_file):
+        content = uploaded_file.read().decode('utf-8-sig')
+        sample = content[:2048]
+        try:
+            dialect = csv.Sniffer().sniff(sample, delimiters=',\t;')
+        except csv.Error:
+            dialect = csv.excel_tab if '\t' in sample else csv.excel
+
+        reader = csv.DictReader(io.StringIO(content), dialect=dialect)
+        normalized_fieldnames = [normalize_header(header) for header in (reader.fieldnames or [])]
+        reader.fieldnames = normalized_fieldnames
+        return [repair_unit_row(row) for row in reader]
+
+    def read_xlsx_rows(uploaded_file):
+        try:
+            from openpyxl import load_workbook
+        except ImportError:
+            raise RuntimeError('openpyxl is not installed. Please use CSV format or contact admin.')
+
+        wb = load_workbook(io.BytesIO(uploaded_file.read()), data_only=True)
+        ws = wb.active
+        headers = [normalize_header(cell.value) for cell in ws[1]]
+        rows = []
+
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            row_dict = {}
+            for idx, header in enumerate(headers):
+                if header:
+                    row_dict[header] = row[idx] if idx < len(row) else None
+            if any(value is not None and str(value).strip() != '' for value in row_dict.values()):
+                rows.append(row_dict)
+        return rows
+
+    def repair_unit_row(row):
+        extra_values = row.get(None, [])
+        row = {normalize_header(k): v for k, v in row.items() if k is not None}
+
+        if extra_values and row.get('rent_amount') and row.get('description'):
+            rent_part = normalize_text(row.get('rent_amount'))
+            decimal_part = normalize_text(row.get('description'))
+            if rent_part.isdigit() and decimal_part.isdigit():
+                row['rent_amount'] = f'{rent_part},{decimal_part}'
+                row['description'] = row.get('status', '')
+                row['status'] = extra_values[0] if extra_values else ''
+
+        return row
 
     if 'file' not in request.FILES:
         return JsonResponse({'success': False, 'message': 'No file provided'})
@@ -171,29 +231,12 @@ def upload_units(request):
         rows = []
         
         if filename.endswith('.csv'):
-            decoded_file = file.read().decode('utf-8').splitlines()
-            reader = csv.DictReader(decoded_file)
-            rows = list(reader)
+            rows = read_csv_rows(file)
         elif filename.endswith('.xlsx'):
             try:
-                import openpyxl
-                from openpyxl import load_workbook
-                import io
-                
-                wb = load_workbook(io.BytesIO(file.read()))
-                ws = wb.active
-                
-                headers = [cell.value for cell in ws[1]]
-                
-                for row in ws.iter_rows(min_row=2, values_only=False):
-                    row_dict = {}
-                    for idx, header in enumerate(headers):
-                        if header:
-                            row_dict[header.lower().strip()] = row[idx].value
-                    if any(row_dict.values()):
-                        rows.append(row_dict)
-            except ImportError:
-                return JsonResponse({'success': False, 'message': 'openpyxl is not installed. Please use CSV format or contact admin.'})
+                rows = read_xlsx_rows(file)
+            except RuntimeError as e:
+                return JsonResponse({'success': False, 'message': str(e)})
         else:
             return JsonResponse({'success': False, 'message': 'Invalid file format. Please use CSV or XLSX'})
         
@@ -205,10 +248,10 @@ def upload_units(request):
         
         for idx, row in enumerate(rows, start=2):
             try:
-                row_lower = {k.lower().strip(): v for k, v in row.items()}
+                row_lower = {normalize_header(k): v for k, v in row.items()}
                 
-                property_name = row_lower.get('property')
-                unit_name = row_lower.get('name')
+                property_name = normalize_text(row_lower.get('property'))
+                unit_name = normalize_text(row_lower.get('name'))
                 rent_amount = row_lower.get('rent_amount')
                 
                 if not property_name or not unit_name or rent_amount is None or str(rent_amount).strip() == '':
@@ -225,14 +268,19 @@ def upload_units(request):
                 except ValueError as ve:
                     errors.append(f'Row {idx}: Invalid rent_amount "{rent_amount}"')
                     continue
+
+                status = normalize_text(row_lower.get('status')).lower() or 'vacant'
+                if status not in dict(Unit.STATUS_CHOICES):
+                    errors.append(f'Row {idx}: Invalid status "{row_lower.get("status")}". Use occupied or vacant')
+                    continue
                 
                 unit_data = {
                     'user': request.user,
                     'property': property_obj,
                     'name': unit_name,
                     'rent_amount': rent_amount_val,
-                    'description': row_lower.get('description', ''),
-                    'status': row_lower.get('status', 'vacant').lower(),
+                    'description': normalize_text(row_lower.get('description')),
+                    'status': status,
                 }
                 
                 Unit.objects.create(**unit_data)

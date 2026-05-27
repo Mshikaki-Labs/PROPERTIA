@@ -115,7 +115,7 @@
                 <h5 class="modal-title fw-bold">Add New Tenant</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form id="addTenantForm" method="post" action="{% url 'tenants:tenant_list' %}">
+            <form id="addTenantForm" method="post" action="{% url 'tenants:tenant_list' %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div id="tenantErrors" class="alert alert-danger mx-4 mt-3" style="display: none;"></div>
                 <div class="modal-body px-4">
@@ -145,6 +145,27 @@
                         {{ form.property }}
                         {% if form.property.errors %}
                             <div class="text-danger small mt-1">{{ form.property.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">ID Card Front</label>
+                        {{ form.id_card_front }}
+                        {% if form.id_card_front.errors %}
+                            <div class="text-danger small mt-1">{{ form.id_card_front.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">ID Card Back</label>
+                        {{ form.id_card_back }}
+                        {% if form.id_card_back.errors %}
+                            <div class="text-danger small mt-1">{{ form.id_card_back.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">KRA PIN</label>
+                        {{ form.kra_pin }}
+                        {% if form.kra_pin.errors %}
+                            <div class="text-danger small mt-1">{{ form.kra_pin.errors }}</div>
                         {% endif %}
                     </div>
                     <div class="mb-3">
@@ -246,7 +267,7 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold">CSV or XLSX File</label>
                         <input type="file" id="tenantsFile" name="file" class="form-control" accept=".csv,.xlsx" required>
-                        <small class="text-muted d-block mt-2"><strong>Required Headers:</strong> first_name, last_name, phone_number, property<br><strong>Optional Headers:</strong> next_of_kin_name, next_of_kin_phone_number, description, status, unit, deposit_required, deposit_amount</small>
+                        <small class="text-muted d-block mt-2"><strong>Required Headers:</strong> first_name, last_name, phone_number, property<br><strong>Optional Headers:</strong> id_card_front, id_card_back, kra_pin, next_of_kin_name, next_of_kin_phone_number, description, status, unit, deposit_required, deposit_amount</small>
                     </div>
                 </div>
                 <div class="modal-footer border-0 px-4 pb-4">

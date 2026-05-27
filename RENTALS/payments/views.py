@@ -53,15 +53,23 @@ def payment_list(request):
     # Get filters from GET parameters
     selected_property = request.GET.get('property', '')
     selected_status = request.GET.get('status', '')
+    selected_start_date = request.GET.get('start_date', '')
+    selected_end_date = request.GET.get('end_date', '')
     
     # Apply filters
-    payments = Payment.objects.filter(user=request.user).select_related('property', 'unit', 'tenant').order_by('-date')
+    payments = Payment.objects.filter(user=request.user).select_related('property', 'unit', 'tenant').order_by('date', 'id')
     
     if selected_property:
         payments = payments.filter(property_id=selected_property)
     
     if selected_status:
         payments = payments.filter(status=selected_status)
+
+    if selected_start_date:
+        payments = payments.filter(date__gte=selected_start_date)
+
+    if selected_end_date:
+        payments = payments.filter(date__lte=selected_end_date)
     
     properties = Property.objects.filter(user=request.user)
     
@@ -73,6 +81,8 @@ def payment_list(request):
         'properties': properties,
         'selected_property': selected_property,
         'selected_status': selected_status,
+        'selected_start_date': selected_start_date,
+        'selected_end_date': selected_end_date,
     }
     context.update(pagination)
     return render(request, 'payments/payments_view.html', context)
@@ -141,6 +151,7 @@ def upload_payments(request):
     
     file = request.FILES['file']
     filename = file.name.lower()
+    validate_only = request.POST.get('validate_only') == '1'
     
     try:
         rows = []
@@ -177,6 +188,7 @@ def upload_payments(request):
         
         created_count = 0
         errors = []
+        valid_rows = 0
         
         for idx, row in enumerate(rows, start=2):
             try:
@@ -250,6 +262,11 @@ def upload_payments(request):
                 if duplicate_exists:
                     errors.append(f'Row {idx}: Duplicate payment skipped for {property_obj.name} house {unit_obj.name} on {date_obj}')
                     continue
+
+                valid_rows += 1
+
+                if validate_only:
+                    continue
                 
                 payment_data = {
                     'user': request.user,
@@ -270,6 +287,15 @@ def upload_payments(request):
             except Exception as e:
                 errors.append(f'Row {idx}: {str(e)}')
         
+        if validate_only:
+            return JsonResponse({
+                'success': len(errors) == 0,
+                'valid_rows': valid_rows,
+                'invalid_rows': len(errors),
+                'errors': errors,
+                'message': f'Validation complete: {valid_rows} valid, {len(errors)} invalid.',
+            })
+
         message = f'Successfully created {created_count} payments'
         if errors:
             message += f'. {len(errors)} errors: ' + '; '.join(errors[:3])

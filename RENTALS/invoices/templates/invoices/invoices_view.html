@@ -17,7 +17,8 @@
 
     <div class="card shadow-sm border-0 mb-4 bg-light">
         <form method="GET" class="card-body row g-3">
-            <div class="col-md-3">
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Property</label>
                 <select name="property" class="form-select border-0">
                     <option value="">All Properties</option>
                     {% for p in properties %}
@@ -25,7 +26,17 @@
                     {% endfor %}
                 </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Unit</label>
+                <select name="unit" class="form-select border-0">
+                    <option value="">All Units</option>
+                    {% for u in units %}
+                        <option value="{{ u.id }}" {% if selected_unit|stringformat:"s" == u.id|stringformat:"s" %}selected{% endif %}>{{ u.name }} - {{ u.property.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">Status</label>
                 <select name="status" class="form-select border-0">
                     <option value="">All Status</option>
                     <option value="Paid" {% if selected_status == "Paid" %}selected{% endif %}>Paid</option>
@@ -34,6 +45,14 @@
                 </select>
             </div>
             <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">From Date</label>
+                <input type="date" name="start_date" class="form-control border-0" value="{{ selected_start_date }}" aria-label="Start date">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted mb-1">To Date</label>
+                <input type="date" name="end_date" class="form-control border-0" value="{{ selected_end_date }}" aria-label="End date">
+            </div>
+            <div class="col-md-2 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary w-100">FILTER</button>
             </div>
         </form>

@@ -60,14 +60,6 @@
     </div>
 
     <div class="mb-3">
-        <label class="form-label">{{ form.role.label }}</label>
-        {{ form.role }}
-        {% for error in form.role.errors %}
-            <small class="text-danger">{{ error }}</small>
-        {% endfor %}
-    </div>
-
-    <div class="mb-3">
         <label class="form-label">{{ form.password1.label }}</label>
         {{ form.password1 }}
         {% if form.password1.errors and form.password1.help_text %}

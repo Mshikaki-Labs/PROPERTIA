@@ -11,6 +11,8 @@ from .forms import TenantForm
 from django.http import JsonResponse
 from properties.models import Property
 from units.models import Unit
+from django.utils import timezone
+import io
 import csv
 from django.contrib.auth.decorators import login_required
 from PROPATIA.pagination import paginate_queryset
@@ -18,7 +20,7 @@ from PROPATIA.pagination import paginate_queryset
 @login_required
 def tenant_list(request):
     if request.method == "POST":
-        form = TenantForm(request.POST, user=request.user)
+        form = TenantForm(request.POST, request.FILES, user=request.user)
         if form.is_valid():
             tenant = form.save(commit=False)
             tenant.user = request.user
@@ -58,7 +60,7 @@ def edit_tenant(request, pk):
     tenant = get_object_or_404(Tenant, pk=pk, user=request.user)
     
     if request.method == "POST":
-        form = TenantForm(request.POST, instance=tenant, user=request.user)
+        form = TenantForm(request.POST, request.FILES, instance=tenant, user=request.user)
         if form.is_valid():
             tenant = form.save(commit=False)
             tenant.user = request.user
@@ -76,9 +78,11 @@ def edit_tenant(request, pk):
 @login_required
 def available_units(request, pk):
     tenant = get_object_or_404(Tenant, pk=pk, user=request.user)
-    unit_query = Unit.objects.filter(user=request.user).exclude(leases__is_active=True)
-    if tenant.property:
-        unit_query = unit_query.filter(property=tenant.property)
+    unit_query = Unit.objects.filter(user=request.user).exclude(leases__is_active=True).exclude(tenants__isnull=False)
+    # Determine property from tenant's current unit or property field
+    property_obj = tenant.unit.property if tenant.unit else tenant.property
+    if property_obj:
+        unit_query = unit_query.filter(property=property_obj)
     else:
         unit_query = unit_query.filter(status='vacant')
 
@@ -211,6 +215,9 @@ def delete_tenants(request):
 @require_POST
 def upload_tenants(request):
     """Upload tenants from CSV or XLSX file. If 'validate_only' POST param is set, only validate and return errors without creating tenants."""
+    def normalize_header(header):
+        return ' '.join(str(header).lower().replace('_', ' ').split()).replace(' ', '_')
+
     def parse_decimal(value):
         if value is None or str(value).strip() == '':
             return 0.0
@@ -227,26 +234,34 @@ def upload_tenants(request):
         rows = []
 
         if filename.endswith('.csv'):
-            decoded_file = file.read().decode('utf-8').splitlines()
-            reader = csv.DictReader(decoded_file)
-            rows = list(reader)
+            content = file.read().decode('utf-8-sig')
+            sample = content[:2048]
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=',\t;')
+            except csv.Error:
+                dialect = csv.excel_tab if '\t' in sample else csv.excel
+
+            reader = csv.DictReader(io.StringIO(content), dialect=dialect)
+            # normalize headers
+            normalized_fieldnames = [normalize_header(h) for h in (reader.fieldnames or [])]
+            reader.fieldnames = normalized_fieldnames
+            rows = [{(k if k is None else k): v for k, v in row.items()} for row in reader]
         elif filename.endswith('.xlsx'):
             try:
                 import openpyxl
                 from openpyxl import load_workbook
-                import io
 
-                wb = load_workbook(io.BytesIO(file.read()))
+                wb = load_workbook(io.BytesIO(file.read()), data_only=True)
                 ws = wb.active
 
-                headers = [cell.value for cell in ws[1]]
+                headers = [normalize_header(cell.value) for cell in ws[1]]
 
-                for row in ws.iter_rows(min_row=2, values_only=False):
+                for row in ws.iter_rows(min_row=2, values_only=True):
                     row_dict = {}
                     for idx, header in enumerate(headers):
                         if header:
-                            row_dict[header.lower().strip()] = row[idx].value
-                    if any(row_dict.values()):
+                            row_dict[header] = row[idx] if idx < len(row) else None
+                    if any(value is not None and str(value).strip() != '' for value in row_dict.values()):
                         rows.append(row_dict)
             except ImportError:
                 return JsonResponse({'success': False, 'message': 'openpyxl is not installed. Please use CSV format or contact admin.'})
@@ -261,12 +276,15 @@ def upload_tenants(request):
         valid_rows = 0
         for idx, row in enumerate(rows, start=2):
             try:
-                row_lower = {k.lower().strip(): v for k, v in row.items()}
+                # headers have been normalized earlier where possible
+                row_lower = {(normalize_header(k) if k is not None else k): v for k, v in row.items()}
 
                 first_name = row_lower.get('first_name')
                 last_name = row_lower.get('last_name')
                 phone_number = row_lower.get('phone_number')
                 property_name = row_lower.get('property')
+                # support unit name header variants
+                unit_name = (row_lower.get('unit_name') or row_lower.get('unit') or row_lower.get('unitname'))
 
                 if not first_name or not last_name or not phone_number or not property_name:
                     errors.append(f'Row {idx}: Missing required fields (first_name, last_name, phone_number, property)')
@@ -291,10 +309,23 @@ def upload_tenants(request):
                         continue
 
                 if not validate_only:
+                    # attempt to resolve unit if provided
+                    unit_obj = None
+                    if unit_name:
+                        try:
+                            unit_lookup = str(unit_name).strip()
+                        except Exception:
+                            unit_lookup = None
+                        if unit_lookup:
+                            unit_obj = Unit.objects.filter(name__iexact=unit_lookup, property=property_obj, user=request.user).first()
+
                     tenant_data = {
                         'first_name': first_name,
                         'last_name': last_name,
                         'phone_number': phone_number,
+                        'id_card_front': row_lower.get('id_card_front', '') or row_lower.get('id_front', '') or row_lower.get('id_card', ''),
+                        'id_card_back': row_lower.get('id_card_back', '') or row_lower.get('id_back', ''),
+                        'kra_pin': row_lower.get('kra_pin', ''),
                         'property': property_obj,
                         'next_of_kin_name': row_lower.get('next_of_kin_name', ''),
                         'next_of_kin_phone_number': row_lower.get('next_of_kin_phone_number', ''),
@@ -304,8 +335,36 @@ def upload_tenants(request):
                         'deposit_amount': deposit_amount,
                         'user': request.user,
                     }
-                    Tenant.objects.create(**tenant_data)
+
+                    tenant = Tenant.objects.create(**tenant_data)
                     created_count += 1
+
+                    # If a unit was provided and found, attach and create lease if possible
+                    if unit_name and unit_obj:
+                        try:
+                            from leases.models import Lease
+                            # Only create lease if unit has no active lease and is not already attached
+                            if not unit_obj.leases.filter(is_active=True).exists() and not unit_obj.tenants.exists():
+                                lease = Lease.objects.create(
+                                    user=request.user,
+                                    tenant=tenant,
+                                    unit=unit_obj,
+                                    start_date=row_lower.get('start_date') or timezone.now().date(),
+                                    monthly_rent=unit_obj.rent_amount,
+                                    deposit_held=deposit_amount,
+                                    is_active=True
+                                )
+                                tenant.unit = unit_obj
+                                tenant.property = unit_obj.property
+                                tenant.save()
+                            else:
+                                # unit provided but cannot be leased now; leave tenant.unit empty
+                                errors.append(f'Row {idx}: Unit "{unit_name}" is not available for leasing; tenant created without unit')
+                        except Exception as e:
+                            errors.append(f'Row {idx}: Failed to attach unit "{unit_name}" - {str(e)}')
+                    elif unit_name and not unit_obj:
+                        # unit specified but not found — create tenant without unit
+                        errors.append(f'Row {idx}: Unit "{unit_name}" not found in property "{property_name}"; tenant created without unit')
                 valid_rows += 1
 
             except ValueError as ve:

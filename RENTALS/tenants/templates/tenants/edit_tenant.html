@@ -10,7 +10,7 @@
 
     <div class="card shadow-sm border-0">
         <div class="card-body p-4">
-            <form method="post">
+            <form method="post" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div class="row">
                     <div class="col-md-6 mb-3">
@@ -25,6 +25,36 @@
                         {{ form.last_name }}
                         {% if form.last_name.errors %}
                             <div class="text-danger small mt-1">{{ form.last_name.errors }}</div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold">ID Card Front</label>
+                        {{ form.id_card_front }}
+                        {% if tenant.id_card_front %}
+                            <small class="d-block mt-1"><a href="{{ tenant.id_card_front.url }}" target="_blank">View current ID card front</a></small>
+                        {% endif %}
+                        {% if form.id_card_front.errors %}
+                            <div class="text-danger small mt-1">{{ form.id_card_front.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold">ID Card Back</label>
+                        {{ form.id_card_back }}
+                        {% if tenant.id_card_back %}
+                            <small class="d-block mt-1"><a href="{{ tenant.id_card_back.url }}" target="_blank">View current ID card back</a></small>
+                        {% endif %}
+                        {% if form.id_card_back.errors %}
+                            <div class="text-danger small mt-1">{{ form.id_card_back.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label fw-bold">KRA PIN</label>
+                        {{ form.kra_pin }}
+                        {% if form.kra_pin.errors %}
+                            <div class="text-danger small mt-1">{{ form.kra_pin.errors }}</div>
                         {% endif %}
                     </div>
                 </div>
