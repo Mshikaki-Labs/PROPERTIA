@@ -16,6 +16,8 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import include, path
+from django.conf import settings
+from django.conf.urls.static import static
 
 from dashboard import views
 
@@ -35,3 +37,6 @@ urlpatterns = [
     path('accounts/', include('accounts.urls'), name='accounts'),
     path('water_bills/', include('water_bills.urls', namespace='water_bills')),
 ]
+
+if settings.DEBUG:
+    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

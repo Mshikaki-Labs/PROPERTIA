@@ -71,6 +71,12 @@ class UploadPaymentsTests(TestCase):
     def upload(self, rows, headers=None):
         return self.client.post(reverse('payments:upload_payments'), {'file': self.make_upload(rows, headers)})
 
+    def validate_upload(self, rows, headers=None):
+        return self.client.post(reverse('payments:upload_payments'), {
+            'file': self.make_upload(rows, headers),
+            'validate_only': '1',
+        })
+
     def test_upload_matches_property_and_house_number_to_active_lease_tenant(self):
         response = self.upload([
             ['Green Court', 'A1', '2026-05-10', 'RCT', 'May rent deposit', '5000.00'],
@@ -93,6 +99,18 @@ class UploadPaymentsTests(TestCase):
         self.assertEqual(payment.status, 'unclaimed')
         self.assertEqual(InvoicePayment.objects.count(), 0)
 
+    def test_validate_upload_does_not_create_payments(self):
+        response = self.validate_upload([
+            ['Green Court', 'A1', '2026-05-10', 'RCT', 'May rent deposit', '5000.00'],
+        ])
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'])
+        self.assertEqual(data['valid_rows'], 1)
+        self.assertEqual(data['invalid_rows'], 0)
+        self.assertEqual(Payment.objects.count(), 0)
+
     def test_upload_accepts_sample_headers_with_house_numner_and_date(self):
         response = self.upload(
             [
@@ -114,6 +132,45 @@ class UploadPaymentsTests(TestCase):
         self.assertEqual(payment.balance, Decimal('8000.00'))
         self.assertEqual(payment.date, date(2026, 5, 1))
         self.assertEqual(payment.description, '')
+
+    def test_payment_list_filters_by_date_range(self):
+        Payment.objects.create(
+            user=self.user,
+            property=self.property,
+            unit=self.unit,
+            tenant=self.tenant,
+            amount=Decimal('1000.00'),
+            date=date(2026, 5, 1),
+            description='Before range',
+        )
+        in_range_payment = Payment.objects.create(
+            user=self.user,
+            property=self.property,
+            unit=self.unit,
+            tenant=self.tenant,
+            amount=Decimal('2000.00'),
+            date=date(2026, 5, 15),
+            description='In range',
+        )
+        Payment.objects.create(
+            user=self.user,
+            property=self.property,
+            unit=self.unit,
+            tenant=self.tenant,
+            amount=Decimal('3000.00'),
+            date=date(2026, 6, 1),
+            description='After range',
+        )
+
+        response = self.client.get(reverse('payments:payment_list'), {
+            'start_date': '2026-05-10',
+            'end_date': '2026-05-20',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, in_range_payment.description)
+        self.assertNotContains(response, 'Before range')
+        self.assertNotContains(response, 'After range')
 
     def test_manual_payment_matches_property_and_unit_to_active_lease_tenant(self):
         response = self.client.post(reverse('payments:payment_list'), {

@@ -1,8 +1,14 @@
-from django.shortcuts import render, redirect
+from datetime import timedelta
+
+from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from .forms import UserRegisterForm, UserUpdateForm, ProfileUpdateForm
+from django.urls import reverse
+from django.utils import timezone
+
+from .forms import InvitationAcceptForm, InvitationCreateForm, UserRegisterForm, UserUpdateForm, ProfileUpdateForm
+from .models import Invitation, Profile
 from django.http import JsonResponse
 
 
@@ -12,10 +18,6 @@ def register_view(request):
     if request.method == 'POST':
         if form.is_valid():
             user = form.save()
-            # Capture the role from the form and save to profile
-            user_role = form.cleaned_data.get('role')
-            user.profile.role = user_role
-            user.profile.save()
             if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                 return JsonResponse({"success": True, "redirect_url": "/accounts/login/"})
             else:
@@ -28,6 +30,81 @@ def register_view(request):
                 return JsonResponse({"success": False, "form_html": form_html}, status=400)
             
     return render(request, 'accounts/register.html', {'form': form})
+
+
+def _is_app_admin(user):
+    return user.is_authenticated and hasattr(user, 'profile') and user.profile.role == Profile.ADMIN
+
+
+def _invitation_url(request, invitation):
+    return request.build_absolute_uri(reverse('accounts:accept_invitation', args=[invitation.token]))
+
+
+@login_required
+def invitations_view(request):
+    if not _is_app_admin(request.user):
+        messages.error(request, 'Only admins can manage invitations.')
+        return redirect('dashboard_home')
+
+    created_invite_url = None
+    if request.method == 'POST':
+        form = InvitationCreateForm(request.POST)
+        if form.is_valid():
+            invitation = form.save(commit=False)
+            invitation.invited_by = request.user
+            invitation.expires_at = timezone.now() + timedelta(days=7)
+            invitation.save()
+            created_invite_url = _invitation_url(request, invitation)
+            messages.success(request, 'Invitation created. Share the link with the invited user.')
+            form = InvitationCreateForm()
+    else:
+        form = InvitationCreateForm()
+
+    invitations = Invitation.objects.select_related('invited_by')
+    for invitation in invitations:
+        invitation.mark_expired()
+
+    return render(request, 'accounts/invitations.html', {
+        'form': form,
+        'invitations': invitations,
+        'created_invite_url': created_invite_url,
+        'title': 'Invitations',
+    })
+
+
+def accept_invitation_view(request, token):
+    invitation = get_object_or_404(Invitation, token=token)
+    if not invitation.can_accept():
+        invitation.mark_expired()
+        return render(request, 'accounts/invitation_invalid.html', {
+            'invitation': invitation,
+            'title': 'Invitation unavailable',
+        }, status=410)
+
+    if request.method == 'POST':
+        form = InvitationAcceptForm(request.POST, invitation=invitation)
+        if form.is_valid():
+            user = form.save(commit=False)
+            user.email = invitation.email
+            user.first_name = form.cleaned_data.get('first_name') or invitation.first_name
+            user.last_name = form.cleaned_data.get('last_name') or invitation.last_name
+            user.save()
+            user.profile.role = invitation.role
+            user.profile.save()
+            invitation.status = Invitation.ACCEPTED
+            invitation.accepted_at = timezone.now()
+            invitation.save(update_fields=['status', 'accepted_at'])
+            login(request, user)
+            messages.success(request, 'Your account has been created.')
+            return redirect('dashboard_home')
+    else:
+        form = InvitationAcceptForm(invitation=invitation)
+
+    return render(request, 'accounts/accept_invitation.html', {
+        'form': form,
+        'invitation': invitation,
+        'title': 'Accept Invitation',
+    })
 
 @login_required
 def profile_settings(request):

@@ -135,6 +135,10 @@ document.addEventListener('DOMContentLoaded', function() {
     // 6. Handle Upload Payments Form
     const uploadForm = document.getElementById('uploadPaymentsForm');
     const uploadMessages = document.getElementById('uploadPaymentsMessages');
+    const paymentsFile = document.getElementById('paymentsFile');
+    const validatePaymentsBtn = document.getElementById('validatePaymentsBtn');
+    const uploadPaymentsBtn = document.getElementById('uploadPaymentsBtn');
+    const cancelPaymentsUploadBtn = document.getElementById('cancelPaymentsUploadBtn');
 
     function escapeHtml(value) {
         const div = document.createElement('div');
@@ -145,7 +149,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function showUploadMessage(type, title, messages = []) {
         if (!uploadMessages) return;
 
-        const alertClass = type === 'success' ? 'alert-success' : 'alert-danger';
+        const alertClass = type === 'success' ? 'alert-success' : type === 'info' ? 'alert-info' : 'alert-danger';
         const listHtml = messages.length
             ? `<ul class="mb-0 mt-2">${messages.map(message => `<li>${escapeHtml(message)}</li>`).join('')}</ul>`
             : '';
@@ -153,57 +157,142 @@ document.addEventListener('DOMContentLoaded', function() {
         uploadMessages.className = `alert ${alertClass}`;
         uploadMessages.innerHTML = `<div class="fw-semibold">${escapeHtml(title)}</div>${listHtml}`;
     }
+
+    function resetUploadActions() {
+        if (uploadPaymentsBtn) {
+            uploadPaymentsBtn.style.display = 'none';
+            uploadPaymentsBtn.disabled = false;
+            uploadPaymentsBtn.textContent = 'Upload';
+        }
+        if (cancelPaymentsUploadBtn) cancelPaymentsUploadBtn.style.display = 'none';
+        if (validatePaymentsBtn) {
+            validatePaymentsBtn.style.display = 'inline-block';
+            validatePaymentsBtn.disabled = false;
+            validatePaymentsBtn.textContent = 'Validate';
+        }
+        if (uploadMessages) {
+            uploadMessages.className = 'alert d-none';
+            uploadMessages.innerHTML = '';
+        }
+    }
+
+    function getSelectedPaymentFile() {
+        const file = paymentsFile && paymentsFile.files ? paymentsFile.files[0] : null;
+
+        if (!file) {
+            showUploadMessage('error', 'Please select a file');
+            return null;
+        }
+
+        const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+        if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
+            showUploadMessage('error', 'Please upload a CSV or XLSX file');
+            return null;
+        }
+
+        return file;
+    }
+
+    function postPaymentUpload(validateOnly) {
+        const file = getSelectedPaymentFile();
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('csrfmiddlewaretoken', uploadForm.querySelector('[name=csrfmiddlewaretoken]').value);
+        if (validateOnly) {
+            formData.append('validate_only', '1');
+        }
+
+        if (validateOnly && validatePaymentsBtn) {
+            validatePaymentsBtn.disabled = true;
+            validatePaymentsBtn.textContent = 'Validating...';
+        }
+        if (!validateOnly && uploadPaymentsBtn) {
+            uploadPaymentsBtn.disabled = true;
+            uploadPaymentsBtn.textContent = 'Uploading...';
+        }
+
+        fetch('/payments/upload/', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            const detailMessages = data.errors ? data.errors.slice(0, 10) : [];
+
+            if (validateOnly) {
+                if (data.success) {
+                    showUploadMessage('success', data.message || `Validation complete: ${data.valid_rows || 0} valid, ${data.invalid_rows || 0} invalid.`, detailMessages);
+                    if (uploadPaymentsBtn) {
+                        uploadPaymentsBtn.style.display = 'inline-block';
+                        uploadPaymentsBtn.disabled = false;
+                        uploadPaymentsBtn.textContent = 'Upload';
+                    }
+                    if (cancelPaymentsUploadBtn) cancelPaymentsUploadBtn.style.display = 'inline-block';
+                    if (validatePaymentsBtn) validatePaymentsBtn.style.display = 'none';
+                } else {
+                    showUploadMessage('error', data.message || 'Validation failed', detailMessages);
+                    if (uploadPaymentsBtn) uploadPaymentsBtn.style.display = 'none';
+                    if (cancelPaymentsUploadBtn) cancelPaymentsUploadBtn.style.display = 'inline-block';
+                    if (validatePaymentsBtn) {
+                        validatePaymentsBtn.disabled = false;
+                        validatePaymentsBtn.textContent = 'Validate';
+                    }
+                }
+                return;
+            }
+
+            if (data.success) {
+                showUploadMessage('success', data.message || `Successfully uploaded ${data.count} payments`, detailMessages);
+                window.location.reload();
+            } else {
+                showUploadMessage('error', data.message || 'Failed to upload payments', detailMessages);
+                if (uploadPaymentsBtn) {
+                    uploadPaymentsBtn.disabled = false;
+                    uploadPaymentsBtn.textContent = 'Upload';
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showUploadMessage('error', validateOnly ? 'An error occurred while validating payments' : 'An error occurred while uploading payments');
+            if (validatePaymentsBtn) {
+                validatePaymentsBtn.disabled = false;
+                validatePaymentsBtn.textContent = 'Validate';
+            }
+            if (uploadPaymentsBtn) {
+                uploadPaymentsBtn.disabled = false;
+                uploadPaymentsBtn.textContent = 'Upload';
+            }
+        });
+    }
     
     if (uploadForm) {
         uploadForm.addEventListener('submit', function(e) {
             e.preventDefault();
-            if (uploadMessages) {
-                uploadMessages.className = 'alert d-none';
-                uploadMessages.innerHTML = '';
-            }
-            
-            const fileInput = document.getElementById('paymentsFile');
-            const file = fileInput.files[0];
-            
-            if (!file) {
-                showUploadMessage('error', 'Please select a file');
-                return;
-            }
-            
-            // Validate file type
-            const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-            if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
-                showUploadMessage('error', 'Please upload a CSV or XLSX file');
-                return;
-            }
-            
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-            
-            fetch('/payments/upload/', {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                const detailMessages = data.errors ? data.errors.slice(0, 10) : [];
-                if (data.success) {
-                    showUploadMessage('success', data.message || `Successfully uploaded ${data.count} payments`, detailMessages);
-                    if (data.count > 0 && !detailMessages.length) {
-                        uploadForm.reset();
-                    }
-                } else {
-                    showUploadMessage('error', data.message || 'Failed to upload payments', detailMessages);
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                showUploadMessage('error', 'An error occurred while uploading payments');
-            });
+            postPaymentUpload(true);
         });
+
+        if (uploadPaymentsBtn) {
+            uploadPaymentsBtn.addEventListener('click', function() {
+                postPaymentUpload(false);
+            });
+        }
+
+        if (paymentsFile) {
+            paymentsFile.addEventListener('change', resetUploadActions);
+        }
+
+        const uploadModal = document.getElementById('uploadModal');
+        if (uploadModal) {
+            uploadModal.addEventListener('hidden.bs.modal', function() {
+                uploadForm.reset();
+                resetUploadActions();
+            });
+        }
     }
 });

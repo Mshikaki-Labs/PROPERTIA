@@ -107,14 +107,23 @@ def invoice_list(request):
         
         return redirect('invoices:invoice_list')
 
-    invoices = Invoice.objects.filter(user=request.user).select_related('unit', 'unit__property', 'tenant').order_by('-due_date')
+    invoices = Invoice.objects.filter(user=request.user).select_related('unit', 'unit__property', 'tenant').order_by('due_date', 'id')
     selected_property = request.GET.get('property', '')
+    selected_unit = request.GET.get('unit', '')
     selected_status = request.GET.get('status', '')
+    selected_start_date = request.GET.get('start_date', '')
+    selected_end_date = request.GET.get('end_date', '')
 
     if selected_property:
         invoices = invoices.filter(unit__property_id=selected_property)
+    if selected_unit:
+        invoices = invoices.filter(unit_id=selected_unit)
     if selected_status:
         invoices = invoices.filter(status=selected_status)
+    if selected_start_date:
+        invoices = invoices.filter(due_date__gte=selected_start_date)
+    if selected_end_date:
+        invoices = invoices.filter(due_date__lte=selected_end_date)
 
     pagination = paginate_queryset(request, invoices)
 
@@ -123,7 +132,10 @@ def invoice_list(request):
         'properties': Property.objects.filter(user=request.user),
         'units': Unit.objects.filter(user=request.user),
         'selected_property': selected_property,
+        'selected_unit': selected_unit,
         'selected_status': selected_status,
+        'selected_start_date': selected_start_date,
+        'selected_end_date': selected_end_date,
     }
     context.update(pagination)
     return render(request, 'invoices/invoices_view.html', context)

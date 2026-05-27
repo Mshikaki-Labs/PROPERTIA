@@ -1,7 +1,10 @@
+import uuid
+
 from django.db import models
 from django.contrib.auth.models import User
 from django.db.models.signals import post_save
 from django.dispatch import receiver
+from django.utils import timezone
 
 
 class Profile(models.Model):
@@ -29,6 +32,47 @@ class Profile(models.Model):
     def __str__(self):
         return f"{self.user.username}'s Profile ({self.get_role_display()})"
 
+
+class Invitation(models.Model):
+    PENDING = 'pending'
+    ACCEPTED = 'accepted'
+    EXPIRED = 'expired'
+
+    STATUS_CHOICES = [
+        (PENDING, 'Pending'),
+        (ACCEPTED, 'Accepted'),
+        (EXPIRED, 'Expired'),
+    ]
+
+    email = models.EmailField()
+    first_name = models.CharField(max_length=30, blank=True)
+    last_name = models.CharField(max_length=30, blank=True)
+    role = models.CharField(max_length=20, choices=Profile.ROLE_CHOICES, default=Profile.LANDLORD)
+    token = models.UUIDField(default=uuid.uuid4, unique=True, editable=False)
+    invited_by = models.ForeignKey(User, on_delete=models.CASCADE, related_name='sent_invitations')
+    accepted_at = models.DateTimeField(blank=True, null=True)
+    expires_at = models.DateTimeField()
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=PENDING)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.email} ({self.get_role_display()})"
+
+    @property
+    def is_expired(self):
+        return timezone.now() >= self.expires_at
+
+    def can_accept(self):
+        return self.status == self.PENDING and not self.accepted_at and not self.is_expired
+
+    def mark_expired(self):
+        if self.status == self.PENDING and self.is_expired:
+            self.status = self.EXPIRED
+            self.save(update_fields=['status'])
+
 # Signals to handle profile creation/saving
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
@@ -38,5 +82,4 @@ def create_user_profile(sender, instance, created, **kwargs):
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
     instance.profile.save()
-
 

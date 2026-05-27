@@ -12,11 +12,14 @@ class TenantForm(forms.ModelForm):
 
     class Meta:
         model = Tenant
-        fields = ['first_name', 'last_name', 'phone_number', 'property', 'next_of_kin_name', 'next_of_kin_phone_number', 'description', 'status', 'deposit_required', 'deposit_amount']
+        fields = ['first_name', 'last_name', 'phone_number', 'property', 'id_card_front', 'id_card_back', 'kra_pin', 'next_of_kin_name', 'next_of_kin_phone_number', 'description', 'status', 'deposit_required', 'deposit_amount']
         widgets = {
             'first_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter first name'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter last name'}),
             'phone_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter phone number'}),
+            'id_card_front': forms.FileInput(attrs={'class': 'form-control'}),
+            'id_card_back': forms.FileInput(attrs={'class': 'form-control'}),
+            'kra_pin': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter KRA PIN'}),
             'next_of_kin_name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter next of kin name'}),
             'next_of_kin_phone_number': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'Enter next of kin phone'}),
             'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3, 'placeholder': 'Enter description'}),
@@ -29,5 +32,8 @@ class TenantForm(forms.ModelForm):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         self.fields['status'].required = False
+        self.fields['id_card_front'].required = False
+        self.fields['id_card_back'].required = False
+        self.fields['kra_pin'].required = False
         if user:
             self.fields['property'].queryset = Property.objects.filter(user=user)
