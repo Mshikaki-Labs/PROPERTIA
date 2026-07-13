@@ -125,8 +125,8 @@
         {% if tenant.unit %}
             <p><strong>Unit:</strong> {{ tenant.unit.name }} - {{ tenant.unit.property.name }}</p>
         {% endif %}
-        {% if tenant.property %}
-            <p><strong>Property:</strong> {{ tenant.property.name }}</p>
+        {% if tenant.unit and tenant.unit.property %}
+            <p><strong>Property:</strong> {{ tenant.unit.property.name }}</p>
         {% endif %}
         <p><strong>Phone:</strong> {{ tenant.phone_number }}</p>
         <p><strong>Status:</strong> 

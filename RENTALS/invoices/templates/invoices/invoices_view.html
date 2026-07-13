@@ -16,7 +16,7 @@
     </div>
 
     <div class="card shadow-sm border-0 mb-4 bg-light">
-        <form method="GET" class="card-body row g-3">
+        <form method="GET" class="card-body row g-3 align-items-end">
             <div class="col-md-2">
                 <label class="form-label small text-muted mb-1">Property</label>
                 <select name="property" class="form-select border-0">
@@ -44,15 +44,18 @@
                     <option value="Unpaid" {% if selected_status == "Unpaid" %}selected{% endif %}>Unpaid</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label small text-muted mb-1">From Date</label>
-                <input type="date" name="start_date" class="form-control border-0" value="{{ selected_start_date }}" aria-label="Start date">
+            <div class="col-md-4">
+                <label class="form-label small text-muted mb-1">Date Range</label>
+                <div class="row g-2">
+                    <div class="col-sm-6">
+                        <input type="date" name="start_date" class="form-control border-0" value="{{ selected_start_date }}" aria-label="Start date">
+                    </div>
+                    <div class="col-sm-6">
+                        <input type="date" name="end_date" class="form-control border-0" value="{{ selected_end_date }}" aria-label="End date">
+                    </div>
+                </div>
             </div>
             <div class="col-md-2">
-                <label class="form-label small text-muted mb-1">To Date</label>
-                <input type="date" name="end_date" class="form-control border-0" value="{{ selected_end_date }}" aria-label="End date">
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary w-100">FILTER</button>
             </div>
         </form>
@@ -102,7 +105,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <button class="btn btn-primary btn-sm rounded attachPaymentBtn" data-invoice-id="{{ inv.id }}" data-bs-toggle="modal" data-bs-target="#attachPaymentModal">Attach Payment</button>
+                            <button class="btn btn-primary btn-sm rounded attachPaymentBtn" data-invoice-id="{{ inv.id }}" data-bs-toggle="modal" data-bs-target="#attachPaymentModal" {% if inv.invoice_payments.exists %}disabled title="Payment already attached"{% endif %}>Attach Payment</button>
                             {% if user.profile.role == 'admin' or user.profile.role == 'landlord' %}
                                 <button class="btn btn-sm btn-light border editPaymentsBtn" data-invoice-id="{{ inv.id }}" data-bs-toggle="modal" data-bs-target="#editPaymentsModal" title="Edit Attached Payments"><i class="bi bi-pencil"></i></button>
                             {% endif %}
@@ -164,10 +167,10 @@
                 <input type="hidden" name="single_generate" value="true">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Select Unit</label>
-                        <select name="unit" class="form-select bg-light border-0" required>
-                            <option selected disabled>Select Unit</option>
-                            {% for u in units %}<option value="{{ u.id }}">{{ u.name }} - {{ u.property.name }}</option>{% endfor %}
+                        <label class="form-label">Select Property</label>
+                        <select name="property" class="form-select bg-light border-0" required>
+                            <option selected disabled>Select Property</option>
+                            {% for p in properties %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">

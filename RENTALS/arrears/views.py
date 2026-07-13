@@ -119,16 +119,17 @@ def arrears_report(request):
 
     # 5. Get available filter options
     properties = Property.objects.filter(user=request.user)
-    units = Unit.objects.filter(user=request.user).select_related('property').order_by('property__name', 'name')
+    units = Unit.objects.filter(property__user=request.user).select_related('property').order_by('property__name', 'name')
     if prop_id:
         units = units.filter(property_id=prop_id)
-    tenants = Tenant.objects.filter(user=request.user, status='active').order_by('first_name', 'last_name')
+    tenants = Tenant.objects.filter(unit__property__user=request.user, status='active').order_by('first_name', 'last_name')
     if prop_id:
         tenants = tenants.filter(unit__property_id=prop_id)
 
     # 6. Context
     context = {
         'report_data': pagination['page_obj'],
+        'page_obj': pagination['page_obj'],
         'total_arrears_amount': total_arrears_amount,
         'total_records': total_records,
         'monthly_arrears': monthly_arrears,

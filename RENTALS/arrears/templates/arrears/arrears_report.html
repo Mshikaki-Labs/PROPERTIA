@@ -142,7 +142,7 @@
     </div>
 
     <!-- Arrears Table -->
-    <div class="card arrears-card">
+    {% comment %} <div class="card arrears-card">
         <div class="card-header">
             <h5 class="mb-0">
                 <i class="fas fa-calendar-alt"></i> Monthly Rent Arrears
@@ -180,7 +180,7 @@
                 </div>
             {% endif %}
         </div>
-    </div>
+    </div> {% endcomment %}
 
     <div class="card arrears-card">
         <div class="card-header">
@@ -251,7 +251,6 @@
                         </tbody>
                     </table>
                 </div>
-                {% include 'templates/includes/pagination.html' %}
             {% else %}
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
                     <i class="fas fa-check-circle"></i>
@@ -259,6 +258,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             {% endif %}
+            {% include 'templates/includes/pagination.html' %}
         </div>
     </div>
 

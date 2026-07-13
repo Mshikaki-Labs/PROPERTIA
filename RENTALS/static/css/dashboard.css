@@ -281,6 +281,12 @@ textarea.is-invalid {
     background-color: #fffafa;
 }
 
+/* Keep date picker popups above table cards and sticky page content. */
+.flatpickr-calendar,
+.flatpickr-calendar.open {
+    z-index: 2050 !important;
+}
+
 /* Error Messages */
 .text-danger,
 .invalid-feedback {

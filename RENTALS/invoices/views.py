@@ -22,12 +22,12 @@ def invoice_list(request):
     # Handle Single Invoice Generation
     if request.method == "POST" and 'single_generate' in request.POST:
         try:
-            unit_id = request.POST.get('unit')
+            property_id = request.POST.get('property') or request.POST.get('unit')
             due_date_str = request.POST.get('due_date')
             inv_type = request.POST.get('type')
             
             # Validate inputs
-            if not unit_id or not due_date_str or not inv_type:
+            if not property_id or not due_date_str or not inv_type:
                 return render(request, 'invoices/invoices_view.html', {
                     'invoices': Invoice.objects.filter(unit__property__user=request.user).order_by('-due_date'),
                     'properties': Property.objects.filter(user=request.user),
@@ -35,42 +35,37 @@ def invoice_list(request):
                     'error': 'Please fill in all fields'
                 })
             
-            # Get unit
-            unit = Unit.objects.get(id=unit_id, property__user=request.user)
-            
             # Convert date string to datetime object
             due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+
+            property_obj = Property.objects.get(id=property_id, user=request.user)
+            units = Unit.objects.filter(property=property_obj)
             
-            # Get tenant assigned to this unit
-            tenant = unit.get_assigned_tenant()
-            
-            if not tenant:
-                return render(request, 'invoices/invoices_view.html', {
-                    'invoices': Invoice.objects.filter(unit__property__user=request.user).order_by('-due_date'),
-                    'properties': Property.objects.filter(user=request.user),
-                    'units': Unit.objects.filter(property__user=request.user),
-                    'error': f'No tenant assigned to unit {unit.name}'
-                })
-            
-            # Create invoice
-            invoice = Invoice.objects.create(
-                user=request.user,
-                unit=unit,
-                tenant=tenant,
-                amount=unit.rent_amount,
-                type=inv_type,
-                due_date=due_date
-            )
-            allocate_credit_to_rent_invoice(invoice)
+            created_count = 0
+            for unit in units:
+                tenant = unit.get_assigned_tenant()
+                if not tenant:
+                    continue
+
+                invoice = Invoice.objects.create(
+                    user=request.user,
+                    unit=unit,
+                    tenant=tenant,
+                    amount=unit.rent_amount,
+                    type=inv_type,
+                    due_date=due_date
+                )
+                allocate_credit_to_rent_invoice(invoice)
+                created_count += 1
             
             return redirect('invoices:invoice_list')
         
-        except Unit.DoesNotExist:
+        except Property.DoesNotExist:
             return render(request, 'invoices/invoices_view.html', {
                 'invoices': Invoice.objects.filter(unit__property__user=request.user).order_by('-due_date'),
                 'properties': Property.objects.filter(user=request.user),
                 'units': Unit.objects.filter(property__user=request.user),
-                'error': 'Unit not found'
+                'error': 'Property not found'
             })
         except Exception as e:
             return render(request, 'invoices/invoices_view.html', {

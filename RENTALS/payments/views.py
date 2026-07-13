@@ -15,6 +15,7 @@ from units.models import Unit
 from leases.models import Lease
 from invoices.services import allocate_payment_to_rent_invoices
 import csv
+import re
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from PROPATIA.pagination import paginate_queryset
@@ -138,20 +139,47 @@ def delete_payments(request):
 def upload_payments(request):
     """Upload payments from CSV or XLSX file"""
     def normalize_header(header):
-        return ' '.join(str(header).lower().replace('_', ' ').split())
+        return ' '.join(
+            str(header)
+            .replace('\ufeff', '')
+            .replace('*', '')
+            .replace('\\', '')
+            .lower()
+            .replace('_', ' ')
+            .split()
+        )
 
     def get_row_value(row, *headers):
         for header in headers:
-            value = row.get(header)
+            value = row.get(normalize_header(header))
             if value is not None and str(value).strip() != '':
                 return value
         return None
 
+    def normalize_upload_row(headers, values):
+        row = {}
+        for idx, header in enumerate(headers):
+            normalized_header = normalize_header(header)
+            if not normalized_header:
+                continue
+
+            value = values[idx] if idx < len(values) else None
+            current_value = row.get(normalized_header)
+            if current_value is None or str(current_value).strip() == '':
+                row[normalized_header] = value
+        return row
+
     def parse_decimal(value):
         if value is None or str(value).strip() == '':
             raise ValueError('Missing amount')
+        value_text = str(value).strip().replace(',', '')
+        value_text = re.sub(r'[^\d.\-()]', '', value_text)
+        if value_text.startswith('(') and value_text.endswith(')'):
+            value_text = f'-{value_text[1:-1]}'
+        if not value_text:
+            raise ValueError('Invalid amount')
         try:
-            return Decimal(str(value).replace(',', '').strip())
+            return Decimal(value_text)
         except (InvalidOperation, ValueError):
             raise ValueError('Invalid amount')
 
@@ -180,9 +208,19 @@ def upload_payments(request):
         rows = []
         
         if filename.endswith('.csv'):
-            decoded_file = file.read().decode('utf-8').splitlines()
-            reader = csv.DictReader(decoded_file)
-            rows = list(reader)
+            content = file.read().decode('utf-8-sig')
+            sample = content[:2048]
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=',\t;')
+            except csv.Error:
+                dialect = csv.excel_tab if '\t' in sample else csv.excel
+            reader = csv.reader(content.splitlines(), dialect=dialect)
+            headers = next(reader, [])
+            rows = [
+                normalize_upload_row(headers, row)
+                for row in reader
+                if any(value is not None and str(value).strip() != '' for value in row)
+            ]
         elif filename.endswith('.xlsx'):
             try:
                 import openpyxl
@@ -195,10 +233,7 @@ def upload_payments(request):
                 headers = [cell.value for cell in ws[1]]
                 
                 for row in ws.iter_rows(min_row=2, values_only=False):
-                    row_dict = {}
-                    for idx, header in enumerate(headers):
-                        if header:
-                            row_dict[normalize_header(header)] = row[idx].value
+                    row_dict = normalize_upload_row(headers, [cell.value for cell in row])
                     if any(row_dict.values()):
                         rows.append(row_dict)
             except ImportError:
@@ -220,7 +255,7 @@ def upload_payments(request):
                 property_name = get_row_value(row_lower, 'property')
                 house_number = get_row_value(
                     row_lower,
-                    'house number',
+                    'HOUSE_NUMBER',
                     'house numner',
                     'house no',
                     'house',
@@ -233,7 +268,7 @@ def upload_payments(request):
                 amount = get_row_value(row_lower, 'amount')
                 
                 if not property_name or not house_number or amount is None or not paid_in_date:
-                    errors.append(f'Row {idx}: Missing required fields (property, house number/HOUSE_NUMNER, date/paid in date, amount)')
+                    errors.append(f'Row {idx}: Missing required fields (PROPERTY, HOUSE_NUMBER, DATE, AMOUNT)')
                     continue
                 
                 property_obj = Property.objects.filter(name__iexact=property_name, user=request.user).first()

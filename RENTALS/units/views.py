@@ -14,26 +14,15 @@ import io
 from .models import Unit
 from tenants.models import Tenant
 from properties.models import Property
-from django import forms
 from django.contrib.auth.decorators import login_required
 from PROPATIA.pagination import paginate_queryset
-
-class UnitForm(forms.ModelForm):
-    class Meta:
-        model = Unit
-        fields = ['property', 'name', 'rent_amount', 'description']
-        widgets = {
-            'property': forms.Select(attrs={'class': 'form-select'}),
-            'name': forms.TextInput(attrs={'class': 'form-control', 'placeholder': 'e.g. House 712'}),
-            'rent_amount': forms.NumberInput(attrs={'class': 'form-control'}),
-            'description': forms.Textarea(attrs={'class': 'form-control', 'rows': 3}),
-        }
+from .forms import UnitForm
 
 @login_required
 def units_list(request):
     # 1. Handle POST (Form Submission)
     if request.method == "POST":
-        form = UnitForm(request.POST)
+        form = UnitForm(request.POST, user=request.user)
         if form.is_valid():
             unit = form.save(commit=False)
             unit.user = request.user
@@ -43,7 +32,7 @@ def units_list(request):
         # to the template so the user can see the error messages.
     else:
         # 2. Handle GET (Initial Page Load)
-        form = UnitForm()
+        form = UnitForm(user=request.user)
 
     # 3. Filtering Logic (Common to both or just GET)
     units = Unit.objects.filter(user=request.user).select_related('property').prefetch_related(
@@ -64,7 +53,7 @@ def units_list(request):
         'units': pagination['page_obj'],
         'form': form, # This is now guaranteed to exist!
         'properties': Property.objects.filter(user=request.user),
-        'tenants': Tenant.objects.filter(user=request.user, unit__isnull=True),
+        'tenants': Tenant.objects.filter(unit__isnull=True).order_by('first_name', 'last_name'),
         'today_date': today_date,
         'selected_property': property_filter,
         'selected_status': status_filter,
@@ -84,7 +73,7 @@ def assign_tenant(request, pk):
         if tenant_id:
             try:
                 from leases.models import Lease
-                tenant = Tenant.objects.filter(id=tenant_id, user=request.user).exclude(leases__is_active=True).first()
+                tenant = Tenant.objects.filter(id=tenant_id).exclude(leases__is_active=True).first()
                 if not tenant:
                     return JsonResponse({'success': False, 'message': 'Selected tenant is not available or does not belong to you.'}, status=400)
                 if tenant.leases.filter(is_active=True).exists():
@@ -103,7 +92,6 @@ def assign_tenant(request, pk):
                     is_active=True
                 )
                 tenant.unit = unit
-                tenant.property = unit.property
                 tenant.save()
                 # Lease creation will handle unit status and tenant activation
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
@@ -117,7 +105,7 @@ def assign_tenant(request, pk):
 
     # Return available tenants for modal
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
-        tenants = Tenant.objects.filter(property=unit.property, user=request.user, unit__isnull=True).exclude(leases__is_active=True).order_by('last_name')
+        tenants = Tenant.objects.filter(unit__isnull=True).exclude(leases__is_active=True).order_by('last_name')
         return JsonResponse({
             'unit_id': unit.id,
             'unit_name': unit.name,

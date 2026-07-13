@@ -9,6 +9,16 @@ from properties.models import Property
 from units.models import Unit
 
 
+class UnitsViewTests(TestCase):
+    def test_units_page_loads_for_logged_in_user(self):
+        user = User.objects.create_user(username='units-user', password='pass12345')
+        self.client.login(username='units-user', password='pass12345')
+
+        response = self.client.get(reverse('units:units_list'))
+
+        self.assertEqual(response.status_code, 200)
+
+
 class UploadUnitsTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='owner', password='pass12345')
