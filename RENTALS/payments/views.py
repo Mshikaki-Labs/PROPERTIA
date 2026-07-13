@@ -9,9 +9,11 @@ from django.http import HttpResponse
 
 from .models import Payment
 from .forms import PaymentForm
+from invoices.models import InvoicePayment
 from properties.models import Property
 from units.models import Unit
 from leases.models import Lease
+from invoices.services import allocate_payment_to_rent_invoices
 import csv
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -44,6 +46,7 @@ def payment_list(request):
                 payment.user = request.user
                 payment.tenant = resolve_active_lease_tenant(request.user, payment.property, payment.unit)
                 payment.save()
+                allocate_payment_to_rent_invoices(payment)
                 return redirect('payments:payment_list')
             except ValueError as e:
                 form.add_error('unit', str(e))
@@ -74,6 +77,26 @@ def payment_list(request):
     properties = Property.objects.filter(user=request.user)
     
     pagination = paginate_queryset(request, payments)
+    page_payments = list(pagination['page_obj'])
+    payment_ids = [payment.id for payment in page_payments]
+    allocations_by_payment = {payment_id: [] for payment_id in payment_ids}
+
+    if payment_ids:
+        allocations = InvoicePayment.objects.filter(
+            payment_id__in=payment_ids,
+        ).select_related('invoice').order_by('invoice__due_date', 'invoice__id')
+        for allocation in allocations:
+            allocations_by_payment.setdefault(allocation.payment_id, []).append(allocation)
+
+    for payment in page_payments:
+        allocations = allocations_by_payment.get(payment.id, [])
+        payment.allocated_amount = sum(allocation.amount_applied for allocation in allocations)
+        payment.remaining_credit = payment.balance
+        payment.allocation_summary = ', '.join(
+            f'{allocation.invoice.due_date:%b %Y}: KES {allocation.amount_applied}'
+            for allocation in allocations
+        )
+        payment.allocation_count = len(allocations)
 
     context = {
         'payments': pagination['page_obj'],
@@ -279,7 +302,8 @@ def upload_payments(request):
                     'description': description,
                 }
                 
-                Payment.objects.create(**payment_data)
+                payment = Payment.objects.create(**payment_data)
+                allocate_payment_to_rent_invoices(payment)
                 created_count += 1
                 
             except ValueError as ve:

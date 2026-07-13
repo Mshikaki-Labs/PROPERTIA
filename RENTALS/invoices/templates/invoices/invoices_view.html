@@ -69,7 +69,10 @@
                         <th>Unit</th>
                         <th>Tenant</th>
                         <th>Type</th>
+                        <th>Rent Month</th>
                         <th>Amount</th>
+                        <th>Amount Paid</th>
+                        <th>Balance Due</th>
                         <th>Due Date</th>
                         <th>Status</th>
                         <th>Actions</th>
@@ -84,7 +87,10 @@
                         <td>{{ inv.unit.name }}</td>
                         <td>{{ inv.tenant.first_name }} {{ inv.tenant.last_name }}</td>
                         <td>{{ inv.type }}</td>
+                        <td>{{ inv.due_date|date:"M Y" }}</td>
                         <td>KES {{ inv.amount }}</td>
+                        <td>KES {{ inv.get_amount_paid|floatformat:2 }}</td>
+                        <td class="fw-semibold">KES {{ inv.get_remaining_balance|floatformat:2 }}</td>
                         <td>{{ inv.due_date|date:"d/m/Y" }}</td>
                         <td>
                             {% if inv.status == 'Paid' %}
@@ -224,6 +230,12 @@
                 </div>
 
                 <div class="mb-3">
+                    <label class="form-label fw-bold">Amount to Apply</label>
+                    <input type="number" id="amountToApplyInput" class="form-control" step="0.01" min="0.01" placeholder="0.00">
+                    <div class="form-text">Enter the part of this payment that should clear this invoice month.</div>
+                </div>
+
+                <div class="mb-3">
                     <label class="form-label fw-bold">Payment Details</label>
                     <div id="paymentRemaining" class="alert alert-info mb-0">
                         Select a payment to see available balance
@@ -314,6 +326,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const paymentSelect = document.getElementById('paymentSelect');
     const attachPaymentBtn = document.getElementById('attachPaymentBtn');
     const attachError = document.getElementById('attachError');
+    const amountToApplyInput = document.getElementById('amountToApplyInput');
     let currentInvoiceId = null;
 
     function getCookie(name) {
@@ -416,7 +429,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const option = document.createElement('option');
                         option.value = payment.id;
                         const codePrefix = payment.code ? `${payment.code} - ` : '';
-                        option.textContent = `${codePrefix}KES ${payment.amount} - ${payment.date}${payment.description ? ' (' + payment.description + ')' : ''}`;
+                        option.textContent = `${codePrefix}KES ${payment.amount} (credit KES ${payment.balance}) - ${payment.date}${payment.description ? ' (' + payment.description + ')' : ''}`;
                         option.dataset.balance = payment.balance;
                         option.dataset.amount = payment.amount;
                         paymentSelect.appendChild(option);
@@ -424,6 +437,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Reset form
                     paymentSelect.value = '';
+                    amountToApplyInput.value = '';
+                    amountToApplyInput.removeAttribute('max');
                     attachError.style.display = 'none';
                 } else {
                     attachError.textContent = data.message;
@@ -442,11 +457,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const selectedOption = this.options[this.selectedIndex];
             const paymentBalance = parseFloat(selectedOption.dataset.balance);
             const paymentAmount = parseFloat(selectedOption.dataset.amount);
+            const invoiceDue = parseFloat(document.getElementById('amountDue').textContent.replace('KES ', ''));
+            const defaultAmount = Math.min(paymentBalance, invoiceDue);
             
             // Show payment details
             document.getElementById('paymentRemaining').innerHTML = `<strong>Remaining on this payment: KES ${paymentBalance.toFixed(2)}</strong><br><small>Total payment: KES ${paymentAmount.toFixed(2)}</small>`;
+            amountToApplyInput.value = defaultAmount.toFixed(2);
+            amountToApplyInput.max = defaultAmount.toFixed(2);
         } else {
             document.getElementById('paymentRemaining').innerHTML = 'Select a payment to see available balance';
+            amountToApplyInput.value = '';
+            amountToApplyInput.removeAttribute('max');
         }
     });
 
@@ -461,9 +482,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedOption = paymentSelect.options[paymentSelect.selectedIndex];
         const paymentBalance = parseFloat(selectedOption.dataset.balance);
         const invoiceDue = parseFloat(document.getElementById('amountDue').textContent.replace('KES ', ''));
-        
-        // Amount to apply is minimum of payment balance and invoice due
-        const amountToApply = Math.min(paymentBalance, invoiceDue);
+        const amountToApply = parseFloat(amountToApplyInput.value);
+
+        if (isNaN(amountToApply) || amountToApply <= 0 || amountToApply > paymentBalance || amountToApply > invoiceDue) {
+            attachError.textContent = `Amount must be greater than 0 and no more than KES ${Math.min(paymentBalance, invoiceDue).toFixed(2)}`;
+            attachError.style.display = 'block';
+            return;
+        }
 
         const formData = new FormData();
         formData.append('invoice_id', currentInvoiceId);

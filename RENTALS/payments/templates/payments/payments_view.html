@@ -72,6 +72,9 @@
                         <th>Tenant</th>
                         <th>Code</th>
                         <th>Amount</th>
+                        <th>Allocated</th>
+                        <th>Credit</th>
+                        <th>Covers</th>
                         <th>Details</th>
                         <th>Status</th>
                     </tr>
@@ -88,6 +91,24 @@
                         <td>{{ payment.tenant.first_name }} {{ payment.tenant.last_name }}</td>
                         <td class="fw-semibold">{{ payment.code|default:"-" }}</td>
                         <td class="fw-bold">KES {{ payment.amount }}</td>
+                        <td>KES {{ payment.allocated_amount|floatformat:2 }}</td>
+                        <td>
+                            {% if payment.remaining_credit > 0 %}
+                                <span class="badge bg-info-subtle text-info rounded-pill px-3">KES {{ payment.remaining_credit|floatformat:2 }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            {% if payment.allocation_summary %}
+                                {{ payment.allocation_summary }}
+                                {% if payment.allocation_count > 1 %}
+                                    <span class="badge bg-primary-subtle text-primary rounded-pill ms-1">split</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">Unallocated credit</span>
+                            {% endif %}
+                        </td>
                         <td class="text-muted small">{{ payment.description|default:"-" }}</td>
                         <td>
                             <span class="badge {% if payment.status == 'claimed' %}bg-success-subtle text-success{% else %}bg-warning-subtle text-warning{% endif %} rounded-pill px-3">
@@ -97,7 +118,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="text-center py-4 text-muted">No payments found matching your criteria.</td>
+                        <td colspan="12" class="text-center py-4 text-muted">No payments found matching your criteria.</td>
                     </tr>
                     {% endfor %}
                 </tbody>

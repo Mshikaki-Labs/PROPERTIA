@@ -66,6 +66,8 @@ def units_list(request):
         'properties': Property.objects.filter(user=request.user),
         'tenants': Tenant.objects.filter(user=request.user, unit__isnull=True),
         'today_date': today_date,
+        'selected_property': property_filter,
+        'selected_status': status_filter,
     }
     context.update(pagination)
     return render(request, 'units/units_view.html', context)

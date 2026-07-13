@@ -26,15 +26,15 @@
                     <select name="property" class="form-select border-0 bg-light">
                         <option value="">All Properties</option>
                         {% for p in properties %}
-                        <option value="{{ p.id }}" {% if request.GET.property == p.id|stringformat:"i" %}selected{% endif %}>{{ p.name }}</option>
+                        <option value="{{ p.id }}" {% if selected_property|stringformat:"s" == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
                         {% endfor %}
                     </select>
                 </div>
                 <div class="col-md-2">
                     <select name="status" class="form-select border-0 bg-light">
-                        <option value="">All Status</option>
-                        <option value="occupied">Occupied</option>
-                        <option value="vacant">Vacant</option>
+                        <option value="" {% if not selected_status %}selected{% endif %}>All Status</option>
+                        <option value="occupied" {% if selected_status == "occupied" %}selected{% endif %}>Occupied</option>
+                        <option value="vacant" {% if selected_status == "vacant" %}selected{% endif %}>Vacant</option>
                     </select>
                 </div>
                 <div class="col-md-2">

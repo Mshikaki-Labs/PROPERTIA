@@ -10,6 +10,7 @@ from django.shortcuts import render
 from django.http import HttpResponse
 
 from .models import Invoice, InvoicePayment
+from .services import allocate_credit_to_rent_invoice, set_payment_status_from_balance
 from properties.models import Property
 from units.models import Unit
 from tenants.models import Tenant
@@ -52,7 +53,7 @@ def invoice_list(request):
                 })
             
             # Create invoice
-            Invoice.objects.create(
+            invoice = Invoice.objects.create(
                 user=request.user,
                 unit=unit,
                 tenant=tenant,
@@ -60,6 +61,7 @@ def invoice_list(request):
                 type=inv_type,
                 due_date=due_date
             )
+            allocate_credit_to_rent_invoice(invoice)
             
             return redirect('invoices:invoice_list')
         
@@ -96,7 +98,7 @@ def invoice_list(request):
             
             if tenant:
                 # Create invoice with the unit's rent amount
-                Invoice.objects.create(
+                invoice = Invoice.objects.create(
                     user=request.user,
                     unit=unit,
                     tenant=tenant,
@@ -104,6 +106,7 @@ def invoice_list(request):
                     type=inv_type,
                     due_date=due_date
                 )
+                allocate_credit_to_rent_invoice(invoice)
         
         return redirect('invoices:invoice_list')
 
@@ -225,6 +228,8 @@ def attach_payment_to_invoice(request):
         # Check if payment balance can cover this amount
         if amount_applied > payment.balance:
             return JsonResponse({'success': False, 'message': f'Payment remaining balance KES {payment.balance} is less than requested KES {amount_applied}'})
+        if amount_applied > invoice.get_remaining_balance():
+            return JsonResponse({'success': False, 'message': f'Invoice remaining balance KES {invoice.get_remaining_balance()} is less than requested KES {amount_applied}'})
         
         # Check if invoice attachment already exists
         existing = InvoicePayment.objects.filter(invoice=invoice, payment=payment).first()
@@ -242,10 +247,7 @@ def attach_payment_to_invoice(request):
         payment.balance -= amount_applied
         
         # Update payment status to claimed only if balance is 0
-        if payment.balance <= 0:
-            payment.status = 'claimed'
-        
-        payment.save()
+        set_payment_status_from_balance(payment)
         
         # Update invoice status
         invoice.update_status()
@@ -330,6 +332,18 @@ def update_invoice_payment(request):
         # Calculate the difference
         old_amount = invoice_payment.amount_applied
         difference = new_amount - old_amount
+        invoice = invoice_payment.invoice
+        invoice_remaining_without_this_payment = invoice.get_remaining_balance() + old_amount
+
+        if new_amount <= 0:
+            return JsonResponse({'success': False, 'message': 'Amount must be greater than 0'})
+
+        # Do not let an edit overpay the invoice.
+        if new_amount > invoice_remaining_without_this_payment:
+            return JsonResponse({
+                'success': False,
+                'message': f'Invoice only has KES {invoice_remaining_without_this_payment} available for this payment'
+            })
         
         # Check if payment has enough balance
         if difference > 0:
@@ -346,17 +360,10 @@ def update_invoice_payment(request):
         # Update payment balance
         payment = invoice_payment.payment
         payment.balance -= difference
-        
-        # Update status
-        if payment.balance <= 0:
-            payment.status = 'claimed'
-        else:
-            payment.status = 'unclaimed'
-        
-        payment.save()
+
+        set_payment_status_from_balance(payment)
         
         # Update invoice status
-        invoice = invoice_payment.invoice
         invoice.update_status()
         
         return JsonResponse({
@@ -395,8 +402,7 @@ def remove_invoice_payment(request):
         
         # Restore payment balance
         payment.balance += amount_applied
-        payment.status = 'unclaimed'
-        payment.save()
+        set_payment_status_from_balance(payment)
         
         # Update invoice status
         invoice.update_status()

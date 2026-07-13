@@ -118,9 +118,13 @@ def tenant_ledger(request, pk):
         tenant=tenant
     ).select_related('unit').order_by('date')
     
-    # Build ledger entries (combined invoices and payments with running balance)
+    invoice_payments = InvoicePayment.objects.filter(
+        invoice__user=request.user,
+        invoice__tenant=tenant,
+    ).select_related('invoice', 'payment').order_by('payment__date', 'invoice__due_date')
+
+    # Build ledger entries from invoices, payment allocations, and unapplied credit.
     ledger_entries = []
-    running_balance = 0
     
     # Add invoices to ledger
     for invoice in invoices:
@@ -131,28 +135,43 @@ def tenant_ledger(request, pk):
             'description': f'Invoice {invoice.invoice_number} ({invoice.get_type_display()})',
             'debit': invoice.amount,
             'credit': None,
-            'balance': running_balance,
+            'balance': 0,
             'status': invoice.status,
             'invoice_id': invoice.id,
             'is_overdue': invoice.due_date < timezone.now().date() and invoice.status != 'Paid',
         })
     
-    # Add payments to ledger
-    for payment in payments:
+    # Add applied payment portions to ledger.
+    for invoice_payment in invoice_payments:
+        payment = invoice_payment.payment
         payment_label = f'Payment {payment.code}' if payment.code else 'Payment'
         if payment.description:
             payment_label = f'{payment_label} ({payment.description})'
-        if payment.unit:
-            payment_label = f'{payment_label} - {payment.unit.name}'
-        running_balance -= payment.amount
         ledger_entries.append({
-            'type': 'payment',
+            'type': 'allocation',
             'date': payment.date,
-            'description': f'{payment_label} - {payment.status}',
+            'description': f'{payment_label} applied to {invoice_payment.invoice.due_date:%b %Y}',
             'debit': None,
-            'credit': payment.amount,
-            'balance': running_balance,
-            'status': payment.status,
+            'credit': invoice_payment.amount_applied,
+            'balance': 0,
+            'status': 'allocated',
+            'payment_id': payment.id,
+            'is_overdue': False,
+        })
+
+    # Add unapplied tenant credit.
+    for payment in payments.filter(balance__gt=0):
+        payment_label = f'Payment {payment.code}' if payment.code else 'Payment'
+        if payment.description:
+            payment_label = f'{payment_label} ({payment.description})'
+        ledger_entries.append({
+            'type': 'credit',
+            'date': payment.date,
+            'description': f'{payment_label} - unapplied credit',
+            'debit': None,
+            'credit': payment.balance,
+            'balance': 0,
+            'status': 'credit',
             'payment_id': payment.id,
             'is_overdue': False,
         })
@@ -172,7 +191,9 @@ def tenant_ledger(request, pk):
     # Summary statistics
     total_invoiced = invoices.aggregate(Sum('amount'))['amount__sum'] or 0
     total_paid = payments.aggregate(Sum('amount'))['amount__sum'] or 0
-    current_balance = total_invoiced - total_paid
+    total_allocated = sum(ip.amount_applied for ip in invoice_payments)
+    tenant_credit = payments.aggregate(Sum('balance'))['balance__sum'] or 0
+    current_balance = total_invoiced - total_allocated - tenant_credit
     
     # Count overdue invoices
     overdue_count = invoices.filter(
@@ -185,6 +206,8 @@ def tenant_ledger(request, pk):
         'ledger_entries': ledger_entries,
         'total_invoiced': total_invoiced,
         'total_paid': total_paid,
+        'total_allocated': total_allocated,
+        'tenant_credit': tenant_credit,
         'current_balance': current_balance,
         'overdue_count': overdue_count,
         'title': f'Tenant Ledger - {tenant.first_name} {tenant.last_name}',
