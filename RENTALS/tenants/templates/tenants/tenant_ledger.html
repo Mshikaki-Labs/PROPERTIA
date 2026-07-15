@@ -181,6 +181,7 @@
                     <thead>
                         <tr>
                             <th>Date</th>
+                            <th>Code</th>
                             <th>Description</th>
                             <th class="text-end">Debit (Invoice)</th>
                             <th class="text-end">Credit (Payment)</th>
@@ -192,6 +193,7 @@
                         {% for entry in ledger_entries %}
                             <tr>
                                 <td>{{ entry.date|date:"M d, Y" }}</td>
+                                <td class="fw-semibold">{{ entry.code|default:"-" }}</td>
                                 <td>
                                     {{ entry.description }}
                                     {% if entry.is_overdue %}

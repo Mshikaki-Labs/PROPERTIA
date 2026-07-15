@@ -214,6 +214,7 @@ class TenantLedgerTests(TestCase):
             property=self.property,
             unit=self.unit,
             tenant=self.tenant,
+            code='RCT-2500',
             amount='2500.00',
             balance='2500.00',
             description='Partial rent payment',
@@ -226,6 +227,8 @@ class TenantLedgerTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Tenant Ledger')
+        self.assertContains(response, '<th>Code</th>', html=True)
+        self.assertContains(response, 'RCT-2500')
         self.assertContains(response, 'Partial rent payment')
         self.assertContains(response, 'INV-')
 

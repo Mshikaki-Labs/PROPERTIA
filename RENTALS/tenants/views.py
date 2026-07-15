@@ -77,6 +77,7 @@ def tenant_ledger(request, pk):
     for invoice in invoices:
         ledger_entries.append({
             'date': invoice.due_date,
+            'code': '',
             'description': f"Invoice {invoice.invoice_number}",
             'debit': invoice.amount,
             'credit': 0,
@@ -88,6 +89,7 @@ def tenant_ledger(request, pk):
     for payment in payments:
         ledger_entries.append({
             'date': payment.date,
+            'code': payment.code or '',
             'description': payment.description or 'Payment received',
             'debit': 0,
             'credit': payment.amount,
