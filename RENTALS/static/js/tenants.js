@@ -247,7 +247,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const selectedIds = Array.from(document.querySelectorAll('.tenant-checkbox:checked'))
                                      .map(cb => cb.value);
 
+            if (!selectedIds.length) return;
             if (!confirm(`Delete ${selectedIds.length} tenants?`)) return;
+            if (!window.downloadSelectedRowsBeforeDelete('.tenant-checkbox:checked', 'tenants-before-delete')) return;
 
             const formData = new FormData();
             selectedIds.forEach(id => formData.append('tenant_ids[]', id));

@@ -31,8 +31,6 @@ class InvoiceFilterTests(TestCase):
             status='occupied',
         )
         self.tenant = Tenant.objects.create(
-            user=self.user,
-            property=self.property,
             unit=self.unit,
             first_name='Jane',
             last_name='Doe',
@@ -88,3 +86,100 @@ class InvoiceFilterTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, selected_invoice.invoice_number)
         self.assertNotContains(response, other_invoice.invoice_number)
+
+    def test_property_units_endpoint_returns_units_for_owned_property(self):
+        Unit.objects.create(
+            user=self.user,
+            property=self.property,
+            name='B2',
+            rent_amount=Decimal('15000.00'),
+            status='vacant',
+        )
+        other_user = User.objects.create_user(username='other', password='pass')
+        other_property = Property.objects.create(
+            user=other_user,
+            name='Other Court',
+            address='Other Road',
+            county='Nairobi',
+            total_units=1,
+            description='Other property',
+        )
+        Unit.objects.create(
+            user=other_user,
+            property=other_property,
+            name='C3',
+            rent_amount=Decimal('17000.00'),
+            status='vacant',
+        )
+
+        response = self.client.get(reverse('invoices:property_units', args=[self.property.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [unit['name'] for unit in response.json()['units']],
+            ['A1', 'B2'],
+        )
+
+        forbidden_response = self.client.get(reverse('invoices:property_units', args=[other_property.id]))
+        self.assertEqual(forbidden_response.status_code, 404)
+
+    def test_single_invoice_generation_creates_invoice_for_selected_unit_only(self):
+        other_unit = Unit.objects.create(
+            user=self.user,
+            property=self.property,
+            name='B2',
+            rent_amount=Decimal('15000.00'),
+            status='occupied',
+        )
+        Tenant.objects.create(
+            unit=other_unit,
+            first_name='John',
+            last_name='Smith',
+            phone_number='0722222222',
+            next_of_kin_phone_number='0733333333',
+        )
+
+        response = self.client.post(reverse('invoices:invoice_list'), {
+            'single_generate': 'true',
+            'property': self.property.id,
+            'unit': self.unit.id,
+            'due_date': '2026-05-01',
+            'type': 'Rent',
+        })
+
+        self.assertRedirects(response, reverse('invoices:invoice_list'))
+        invoices = Invoice.objects.all()
+        self.assertEqual(invoices.count(), 1)
+        invoice = invoices.get()
+        self.assertEqual(invoice.unit, self.unit)
+        self.assertEqual(invoice.tenant, self.tenant)
+        self.assertEqual(invoice.amount, self.unit.rent_amount)
+
+    def test_single_invoice_generation_rejects_unit_from_different_property(self):
+        other_property = Property.objects.create(
+            user=self.user,
+            name='Blue Court',
+            address='Side Road',
+            county='Nairobi',
+            total_units=1,
+            description='Other owned property',
+        )
+        other_unit = Unit.objects.create(
+            user=self.user,
+            property=other_property,
+            name='C3',
+            rent_amount=Decimal('17000.00'),
+            status='occupied',
+        )
+
+        response = self.client.post(reverse('invoices:invoice_list'), {
+            'single_generate': 'true',
+            'property': self.property.id,
+            'unit': other_unit.id,
+            'due_date': '2026-05-01',
+            'type': 'Rent',
+        })
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Selected unit does not belong to the selected property')
+        self.assertEqual(Invoice.objects.count(), 0)

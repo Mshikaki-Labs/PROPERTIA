@@ -24,8 +24,6 @@ def tenant_list(request):
     else:
         form = TenantForm(user=request.user)
 
-    Tenant.objects.filter(Q(unit__isnull=True) | Q(unit__property__isnull=True)).delete()
-
     user_properties = Property.objects.filter(user=request.user)
     tenants = Tenant.objects.filter(unit__property__user=request.user).select_related('unit', 'unit__property').order_by('last_name', 'first_name')
 
@@ -72,6 +70,10 @@ def tenant_ledger(request, pk):
 
     invoices = Invoice.objects.filter(tenant=tenant).select_related('unit').order_by('due_date', 'id')
     payments = Payment.objects.filter(tenant=tenant).select_related('unit').order_by('date', 'id')
+    property_tenants = Tenant.objects.filter(
+        unit__property=tenant.unit.property,
+        unit__property__user=request.user,
+    ).select_related('unit').order_by('unit__name', 'last_name', 'first_name')
 
     ledger_entries = []
     for invoice in invoices:
@@ -119,6 +121,7 @@ def tenant_ledger(request, pk):
         'total_paid': total_paid,
         'current_balance': current_balance,
         'overdue_count': overdue_count,
+        'property_tenants': property_tenants,
     })
 
 

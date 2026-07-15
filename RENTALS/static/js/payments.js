@@ -54,7 +54,9 @@ document.addEventListener('DOMContentLoaded', function() {
             const selectedIds = Array.from(document.querySelectorAll('.payment-checkbox:checked'))
                                      .map(cb => cb.value);
 
+            if (!selectedIds.length) return;
             if (!confirm(`Delete ${selectedIds.length} payment(s)?`)) return;
+            if (!window.downloadSelectedRowsBeforeDelete('.payment-checkbox:checked', 'payments-before-delete')) return;
 
             const formData = new FormData();
             selectedIds.forEach(id => formData.append('payment_ids[]', id));
