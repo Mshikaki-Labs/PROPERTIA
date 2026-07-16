@@ -1,6 +1,7 @@
 from datetime import date
 from decimal import Decimal
-from io import BytesIO
+from io import BytesIO, StringIO
+import csv
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -36,8 +37,6 @@ class UploadPaymentsTests(TestCase):
             status='occupied',
         )
         self.tenant = Tenant.objects.create(
-            user=self.user,
-            property=self.property,
             unit=self.unit,
             first_name='Jane',
             last_name='Doe',
@@ -68,6 +67,19 @@ class UploadPaymentsTests(TestCase):
             content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         )
 
+    def make_csv_upload(self, rows, headers=None, delimiter=','):
+        headers = headers or ['property', 'house number', 'paid in date', 'code', 'details', 'amount']
+        stream = StringIO()
+        writer = csv.writer(stream, delimiter=delimiter)
+        writer.writerow(headers)
+        for row in rows:
+            writer.writerow(row)
+        return SimpleUploadedFile(
+            'payments.csv',
+            stream.getvalue().encode('utf-8'),
+            content_type='text/csv',
+        )
+
     def upload(self, rows, headers=None):
         return self.client.post(reverse('payments:upload_payments'), {'file': self.make_upload(rows, headers)})
 
@@ -75,6 +87,11 @@ class UploadPaymentsTests(TestCase):
         return self.client.post(reverse('payments:upload_payments'), {
             'file': self.make_upload(rows, headers),
             'validate_only': '1',
+        })
+
+    def upload_csv(self, rows, headers=None, delimiter=','):
+        return self.client.post(reverse('payments:upload_payments'), {
+            'file': self.make_csv_upload(rows, headers, delimiter),
         })
 
     def test_upload_matches_property_and_house_number_to_active_lease_tenant(self):
@@ -111,7 +128,7 @@ class UploadPaymentsTests(TestCase):
         self.assertEqual(data['invalid_rows'], 0)
         self.assertEqual(Payment.objects.count(), 0)
 
-    def test_upload_accepts_sample_headers_with_house_numner_and_date(self):
+    def test_upload_accepts_legacy_house_numner_header(self):
         response = self.upload(
             [
                 ['Green Court', 'A1', '01-05-2026', 'RCT', '', '8,000.00'],
@@ -132,6 +149,82 @@ class UploadPaymentsTests(TestCase):
         self.assertEqual(payment.balance, Decimal('8000.00'))
         self.assertEqual(payment.date, date(2026, 5, 1))
         self.assertEqual(payment.description, '')
+
+    def test_upload_matches_required_headers_regardless_of_case(self):
+        response = self.upload(
+            [
+                ['Green Court', 'A1', '01-05-2026', 'RCT', 'Mixed case headers', '8000.00'],
+            ],
+            headers=['property', 'House_Number', 'Date', 'cOdE', 'details', 'amount'],
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'], data)
+        self.assertEqual(data['count'], 1)
+
+        payment = Payment.objects.get()
+        self.assertEqual(payment.property, self.property)
+        self.assertEqual(payment.unit, self.unit)
+        self.assertEqual(payment.tenant, self.tenant)
+        self.assertEqual(payment.code, 'RCT')
+        self.assertEqual(payment.amount, Decimal('8000.00'))
+        self.assertEqual(payment.date, date(2026, 5, 1))
+        self.assertEqual(payment.description, 'Mixed case headers')
+
+    def test_upload_accepts_tab_csv_with_house_number_and_ksh_amount(self):
+        response = self.upload_csv(
+            [
+                ['Green Court', 'A1', '01-02-2026', 'YMO', 'Merchant Payment Online', 'Ksh9,200.00'],
+            ],
+            headers=['**PROPERTY**', '**HOUSE_NUMBER**', '**DATE**', '**CODE**', '**DETAILS**', '**AMOUNT**'],
+            delimiter='\t',
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'], data)
+        self.assertEqual(data['count'], 1)
+
+        payment = Payment.objects.get()
+        self.assertEqual(payment.property, self.property)
+        self.assertEqual(payment.unit, self.unit)
+        self.assertEqual(payment.tenant, self.tenant)
+        self.assertEqual(payment.code, 'YMO')
+        self.assertEqual(payment.amount, Decimal('9200.00'))
+        self.assertEqual(payment.balance, Decimal('9200.00'))
+        self.assertEqual(payment.date, date(2026, 2, 1))
+        self.assertEqual(payment.description, 'Merchant Payment Online')
+
+    def test_upload_accepts_csv_with_repeated_header_groups(self):
+        blank_columns = [''] * 6
+        headers = (
+            ['PROPERTY', 'HOUSE_NUMBER', 'DATE', 'CODE', 'DETAILS', 'AMOUNT']
+            + blank_columns
+            + ['PROPERTY', 'House_NUMBER', 'DATE', 'CODE', 'DETAILS', 'AMOUNT']
+            + blank_columns
+            + ['PROPERTY', 'House_NUMBER', 'DATE', 'CODE', 'DETAILS', 'AMOUNT']
+        )
+        row = (
+            ['Green Court', 'A1', '01-02-2026', 'YMO', 'Duplicate header groups', '9,200.00']
+            + ([''] * (len(headers) - 6))
+        )
+
+        response = self.upload_csv([row], headers=headers)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertTrue(data['success'], data)
+        self.assertEqual(data['count'], 1)
+
+        payment = Payment.objects.get()
+        self.assertEqual(payment.property, self.property)
+        self.assertEqual(payment.unit, self.unit)
+        self.assertEqual(payment.tenant, self.tenant)
+        self.assertEqual(payment.code, 'YMO')
+        self.assertEqual(payment.amount, Decimal('9200.00'))
+        self.assertEqual(payment.date, date(2026, 2, 1))
+        self.assertEqual(payment.description, 'Duplicate header groups')
 
     def test_payment_list_filters_by_date_range(self):
         Payment.objects.create(

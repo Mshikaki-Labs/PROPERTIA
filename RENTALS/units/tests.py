@@ -9,6 +9,16 @@ from properties.models import Property
 from units.models import Unit
 
 
+class UnitsViewTests(TestCase):
+    def test_units_page_loads_for_logged_in_user(self):
+        user = User.objects.create_user(username='units-user', password='pass12345')
+        self.client.login(username='units-user', password='pass12345')
+
+        response = self.client.get(reverse('units:units_list'))
+
+        self.assertEqual(response.status_code, 200)
+
+
 class UploadUnitsTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(username='owner', password='pass12345')
@@ -71,3 +81,26 @@ class UploadUnitsTests(TestCase):
         self.assertEqual(data['count'], 1)
         self.assertEqual(data['invalid_rows'], 1)
         self.assertIn('Row 3: Property "MISSING" not found for this user', data['errors'])
+
+    def test_units_list_filters_by_status_and_preserves_selected_option(self):
+        occupied_unit = Unit.objects.create(
+            user=self.user,
+            property=self.property,
+            name='Occupied 1',
+            rent_amount=Decimal('12000.00'),
+            status='occupied',
+        )
+        Unit.objects.create(
+            user=self.user,
+            property=self.property,
+            name='Vacant 1',
+            rent_amount=Decimal('9000.00'),
+            status='vacant',
+        )
+
+        response = self.client.get(reverse('units:units_list'), {'status': 'occupied'})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, occupied_unit.name)
+        self.assertNotContains(response, 'Vacant 1')
+        self.assertContains(response, '<option value="occupied" selected>Occupied</option>', html=True)

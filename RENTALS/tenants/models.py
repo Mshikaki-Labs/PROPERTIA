@@ -1,5 +1,4 @@
 from django.db import models
-from django.contrib.auth.models import User
 
 # Create your models here.
 from units.models import Unit
@@ -10,15 +9,10 @@ class Tenant(models.Model):
         ('inactive', 'Inactive'),
     ]
 
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
-    property = models.ForeignKey('properties.Property', on_delete=models.CASCADE, related_name='tenants', blank=True, null=True)
     unit = models.ForeignKey(Unit, on_delete=models.CASCADE, related_name='tenants', blank=True, null=True)
     first_name = models.CharField(max_length=255)
     last_name = models.CharField(max_length=255)
     phone_number = models.CharField(max_length=20)
-    id_card_front = models.FileField(upload_to='tenant_documents/id_cards/front/', blank=True, null=True)
-    id_card_back = models.FileField(upload_to='tenant_documents/id_cards/back/', blank=True, null=True)
-    kra_pin = models.CharField(max_length=50, blank=True, null=True)
     next_of_kin_name = models.CharField(max_length=255, blank=True, null=True)
     next_of_kin_phone_number = models.CharField(max_length=20)
     description = models.TextField(blank=True, null=True)

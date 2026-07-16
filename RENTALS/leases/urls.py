@@ -20,4 +20,5 @@ from . import views  # Import views from the current folder
 urlpatterns = [
     # Point to a view function, NOT an include()
     path('', views.index, name='leases_home'), 
+    path('units/', views.units_for_property, name='lease_units_for_property'),
 ]

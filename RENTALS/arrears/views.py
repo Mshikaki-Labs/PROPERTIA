@@ -3,6 +3,7 @@ from django.contrib.auth.decorators import login_required
 from django.http import HttpResponse
 from django.db.models import Sum
 from django.utils import timezone
+from collections import OrderedDict
 
 from properties.models import Property
 from units.models import Unit
@@ -90,22 +91,48 @@ def arrears_report(request):
 
     total_arrears_amount = arrears_records.aggregate(total=Sum('amount_due'))['total'] or 0
     total_records = arrears_records.count()
+
+    monthly_groups = OrderedDict()
+    tenant_running_totals = {}
+    monthly_source = arrears_records.order_by('tenant__last_name', 'tenant__first_name', 'invoice__due_date', 'id')
+    for record in monthly_source:
+        month_key = record.invoice.due_date.replace(day=1)
+        key = (record.tenant_id, record.unit_id, month_key)
+        if key not in monthly_groups:
+            monthly_groups[key] = {
+                'tenant': record.tenant,
+                'unit': record.unit,
+                'month': month_key,
+                'monthly_arrears': 0,
+                'accumulated_arrears': 0,
+            }
+        monthly_groups[key]['monthly_arrears'] += record.amount_due
+
+    monthly_arrears = []
+    for group in monthly_groups.values():
+        tenant_id = group['tenant'].id
+        tenant_running_totals[tenant_id] = tenant_running_totals.get(tenant_id, 0) + group['monthly_arrears']
+        group['accumulated_arrears'] = tenant_running_totals[tenant_id]
+        monthly_arrears.append(group)
+
     pagination = paginate_queryset(request, arrears_records)
 
     # 5. Get available filter options
     properties = Property.objects.filter(user=request.user)
-    units = Unit.objects.filter(user=request.user).select_related('property').order_by('property__name', 'name')
+    units = Unit.objects.filter(property__user=request.user).select_related('property').order_by('property__name', 'name')
     if prop_id:
         units = units.filter(property_id=prop_id)
-    tenants = Tenant.objects.filter(user=request.user, status='active').order_by('first_name', 'last_name')
+    tenants = Tenant.objects.filter(unit__property__user=request.user, status='active').order_by('first_name', 'last_name')
     if prop_id:
         tenants = tenants.filter(unit__property_id=prop_id)
 
     # 6. Context
     context = {
         'report_data': pagination['page_obj'],
+        'page_obj': pagination['page_obj'],
         'total_arrears_amount': total_arrears_amount,
         'total_records': total_records,
+        'monthly_arrears': monthly_arrears,
         'properties': properties,
         'units': units,
         'tenants': tenants,

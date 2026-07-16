@@ -17,7 +17,7 @@
          <h5 class="mb-3">Filters</h5>
          <form method="GET" class="row g-3">
             <div class="col-md-4">
-               <select name="property" class="form-select">
+               <select name="property" id="leasePropertyFilter" class="form-select">
                   <option value="">All Properties</option>
                   {% for p in properties %}
                   <option value="{{ p.id }}" {% if selected_property|stringformat:"s" == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
@@ -25,7 +25,7 @@
                </select>
             </div>
             <div class="col-md-4">
-               <select name="unit" class="form-select">
+               <select name="unit" id="leaseUnitFilter" class="form-select" data-units-url="/leases/units/">
                   <option value="">All Units</option>
                   {% for u in units %}
                   <option value="{{ u.id }}" {% if selected_unit|stringformat:"s" == u.id|stringformat:"s" %}selected{% endif %}>{{ u.name }} ({{ u.property.name }})</option>
@@ -78,4 +78,8 @@
       {% include 'templates/includes/pagination.html' %}
    </div>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/leases.js' %}" defer></script>
 {% endblock %}

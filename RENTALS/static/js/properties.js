@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const propertiesPage = document.getElementById('propertiesPage');
+    const deletePropertiesUrl = propertiesPage ? propertiesPage.dataset.deleteUrl : '/properties/delete/';
     const selectAllCheckbox = document.getElementById('selectAllCheckbox');
     const propertyCheckboxes = document.querySelectorAll('.property-checkbox');
     const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
@@ -101,10 +103,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         if (confirm(`Are you sure you want to delete ${selectedIds.length} property/ies? This action cannot be undone.`)) {
+            if (!window.downloadSelectedRowsBeforeDelete('.property-checkbox:checked', 'properties-before-delete')) return;
+
             const formData = new FormData();
             selectedIds.forEach(id => formData.append('property_ids[]', id));
             
-            fetch('{% url "properties:delete_properties" %}', {
+            fetch(deletePropertiesUrl, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value || ''

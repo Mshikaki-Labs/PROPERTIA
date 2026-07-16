@@ -9,7 +9,8 @@ document.addEventListener('DOMContentLoaded', function() {
                 allowInput: true,
                 altInput: true,
                 altFormat: 'F j, Y',
-                static: true,
+                appendTo: document.body,
+                disableMobile: true,
             });
         });
     }

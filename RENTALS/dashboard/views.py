@@ -12,7 +12,7 @@ from datetime import timedelta
 def index(request):
     # Get counts and statistics
     total_properties = Property.objects.filter(user=request.user).count()
-    total_tenants = Tenant.objects.filter(user=request.user).count()
+    total_tenants = Tenant.objects.filter(unit__property__user=request.user).count()
     total_units = Property.objects.filter(user=request.user).aggregate(total_units=Sum('total_units'))['total_units'] or 0
     maintenance_requests = 0  # No maintenance model created yet
     
@@ -20,13 +20,14 @@ def index(request):
     recent_properties_qs = Property.objects.filter(user=request.user)[:5]
     recent_properties = []
     for prop in recent_properties_qs:
-        occupied_units = prop.units.filter(user=request.user, status='occupied').count() if hasattr(prop, 'units') else 0
-        total_units = prop.units.filter(user=request.user).count() if hasattr(prop, 'units') else prop.total_units
+        occupied_units = prop.units.filter(status='occupied').count() if hasattr(prop, 'units') else 0
+        total_units = prop.units.count() if hasattr(prop, 'units') else prop.total_units
         recent_properties.append({
             'id': prop.id,
             'name': prop.name,
             'address': prop.address,
             'county': prop.county,
+            'location': prop.address,
             'total_units': total_units,
             'occupied_units': occupied_units,
             'description': prop.description,
@@ -34,7 +35,7 @@ def index(request):
         })
     
     # Get recent tenants (last 4)
-    recent_tenants = Tenant.objects.filter(user=request.user)[:4]
+    recent_tenants = Tenant.objects.filter(unit__property__user=request.user).order_by('-id')[:4]
     
     # Calculate monthly revenue (payments from last 30 days)
     thirty_days_ago = timezone.now() - timedelta(days=30)

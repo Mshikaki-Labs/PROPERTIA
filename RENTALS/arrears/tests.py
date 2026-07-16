@@ -34,8 +34,6 @@ class ArrearsReportTests(TestCase):
             status='occupied',
         )
         self.tenant = Tenant.objects.create(
-            user=self.user,
-            property=self.property,
             unit=self.unit,
             first_name='Jane',
             last_name='Doe',
@@ -84,6 +82,13 @@ class ArrearsReportTests(TestCase):
 
         arrears = Arrears.objects.get(invoice=invoice)
         self.assertEqual(arrears.amount_due, Decimal('7000.00'))
+
+    def test_report_handles_no_arrears(self):
+        response = self.client.get(reverse('arrears:arrears_report'))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Rows')
+        self.assertContains(response, 'per_page')
 
     def test_report_resolves_arrears_when_invoice_is_paid(self):
         invoice = self.make_invoice()

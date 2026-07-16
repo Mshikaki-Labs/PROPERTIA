@@ -1,4 +1,4 @@
-{% if page_obj %}
+{% if page_obj or page_size_options %}
 <div class="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 p-3 border-top">
     <div class="text-muted small">
         Showing {{ page_obj.start_index }}-{{ page_obj.end_index }} of {{ page_obj.paginator.count }}
@@ -24,19 +24,19 @@
                 <ul class="pagination pagination-sm mb-0">
                     <li class="page-item {% if not page_obj.has_previous %}disabled{% endif %}">
                         {% if page_obj.has_previous %}
-                            <a class="page-link" href="?{% if pagination_querystring %}{{ pagination_querystring }}&{% endif %}page={{ page_obj.previous_page_number }}">Previous</a>
+                            <a class="page-link" href="?{% if pagination_querystring %}{{ pagination_querystring }}&{% endif %}page={{ page_obj.previous_page_number }}&per_page={{ selected_per_page }}">Previous</a>
                         {% else %}
                             <span class="page-link">Previous</span>
                         {% endif %}
                     </li>
                     {% for page_number in page_numbers %}
                         <li class="page-item {% if page_obj.number == page_number %}active{% endif %}">
-                            <a class="page-link" href="?{% if pagination_querystring %}{{ pagination_querystring }}&{% endif %}page={{ page_number }}">{{ page_number }}</a>
+                            <a class="page-link" href="?{% if pagination_querystring %}{{ pagination_querystring }}&{% endif %}page={{ page_number }}&per_page={{ selected_per_page }}">{{ page_number }}</a>
                         </li>
                     {% endfor %}
                     <li class="page-item {% if not page_obj.has_next %}disabled{% endif %}">
                         {% if page_obj.has_next %}
-                            <a class="page-link" href="?{% if pagination_querystring %}{{ pagination_querystring }}&{% endif %}page={{ page_obj.next_page_number }}">Next</a>
+                            <a class="page-link" href="?{% if pagination_querystring %}{{ pagination_querystring }}&{% endif %}page={{ page_obj.next_page_number }}&per_page={{ selected_per_page }}">Next</a>
                         {% else %}
                             <span class="page-link">Next</span>
                         {% endif %}

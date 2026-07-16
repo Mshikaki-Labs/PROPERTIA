@@ -2,73 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<style>
-    .arrears-card {
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-    }
-    .summary-box {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 8px;
-        text-align: center;
-    }
-    .summary-box h3 {
-        margin: 0;
-        font-size: 14px;
-        opacity: 0.9;
-        font-weight: 500;
-    }
-    .summary-box .value {
-        font-size: 28px;
-        font-weight: bold;
-        margin-top: 10px;
-    }
-    .filter-section {
-        background-color: #f8f9fa;
-        padding: 15px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-    }
-    .arrears-table th {
-        background-color: #f8f9fa;
-        font-weight: 600;
-        border-bottom: 2px solid #dee2e6;
-    }
-    .arrears-table td {
-        padding: 12px 8px;
-        border-bottom: 1px solid #dee2e6;
-    }
-    .arrears-table tr:hover {
-        background-color: #f8f9fa;
-    }
-    .status-pending {
-        background-color: #ffc107;
-        color: #000;
-    }
-    .status-resolved {
-        background-color: #28a745;
-        color: white;
-    }
-    .status-written_off {
-        background-color: #6c757d;
-        color: white;
-    }
-    .days-overdue-high {
-        color: #dc3545;
-        font-weight: 600;
-    }
-    .days-overdue-medium {
-        color: #ff6b6b;
-        font-weight: 500;
-    }
-    .amount-large {
-        color: #dc3545;
-        font-weight: 600;
-    }
-</style>
+<link rel="stylesheet" href="{% static 'css/arrears_report.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -142,6 +76,46 @@
     </div>
 
     <!-- Arrears Table -->
+    {% comment %} <div class="card arrears-card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-calendar-alt"></i> Monthly Rent Arrears
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if monthly_arrears %}
+                <div class="table-responsive">
+                    <table class="table table-hover arrears-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Tenant</th>
+                                <th>Unit</th>
+                                <th>Monthly Arrears</th>
+                                <th>Accumulated Arrears</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in monthly_arrears %}
+                                <tr>
+                                    <td>{{ item.month|date:"M Y" }}</td>
+                                    <td>{{ item.tenant.first_name }} {{ item.tenant.last_name }}</td>
+                                    <td>{{ item.unit.name }} ({{ item.unit.property.name }})</td>
+                                    <td class="amount-large">KES {{ item.monthly_arrears|floatformat:2 }}</td>
+                                    <td class="amount-large">KES {{ item.accumulated_arrears|floatformat:2 }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-success mb-0">
+                    <i class="fas fa-check-circle"></i> No monthly rent arrears found matching your filters.
+                </div>
+            {% endif %}
+        </div>
+    </div> {% endcomment %}
+
     <div class="card arrears-card">
         <div class="card-header">
             <h5 class="mb-0">
@@ -211,7 +185,6 @@
                         </tbody>
                     </table>
                 </div>
-                {% include 'templates/includes/pagination.html' %}
             {% else %}
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
                     <i class="fas fa-check-circle"></i>
@@ -219,6 +192,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             {% endif %}
+            {% include 'templates/includes/pagination.html' %}
         </div>
     </div>
 

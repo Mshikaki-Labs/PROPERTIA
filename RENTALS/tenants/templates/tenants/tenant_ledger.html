@@ -2,114 +2,7 @@
 {% load static %}
 
 {% block extra_css %}
-<style>
-    .ledger-card {
-        border-radius: 8px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
-    }
-    .summary-stats {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 20px;
-        margin-bottom: 30px;
-    }
-    .stat-box {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        color: white;
-        padding: 20px;
-        border-radius: 8px;
-        text-align: center;
-    }
-    .stat-box.positive {
-        background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-    }
-    .stat-box h3 {
-        margin: 0;
-        font-size: 14px;
-        opacity: 0.9;
-        font-weight: 500;
-    }
-    .stat-box .value {
-        font-size: 28px;
-        font-weight: bold;
-        margin-top: 10px;
-    }
-    .ledger-table {
-        font-size: 14px;
-    }
-    .ledger-table th {
-        background-color: #f8f9fa;
-        font-weight: 600;
-        border-bottom: 2px solid #dee2e6;
-    }
-    .ledger-table td {
-        padding: 12px 8px;
-        border-bottom: 1px solid #dee2e6;
-    }
-    .ledger-table tr:hover {
-        background-color: #f8f9fa;
-    }
-    .type-invoice {
-        color: #dc3545;
-        font-weight: 500;
-    }
-    .type-payment {
-        color: #28a745;
-        font-weight: 500;
-    }
-    .status-paid {
-        badge badge-success;
-    }
-    .status-partially {
-        badge badge-warning;
-    }
-    .status-unpaid {
-        badge badge-danger;
-    }
-    .badge-overdue {
-        background-color: #ff6b6b;
-        color: white;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 11px;
-        display: inline-block;
-    }
-    .amount-debit {
-        color: #dc3545;
-        text-align: right;
-    }
-    .amount-credit {
-        color: #28a745;
-        text-align: right;
-    }
-    .balance-positive {
-        color: #dc3545;
-        font-weight: 600;
-    }
-    .balance-zero {
-        color: #28a745;
-        font-weight: 600;
-    }
-    .back-button {
-        margin-bottom: 20px;
-    }
-    .tenant-header {
-        background-color: #f8f9fa;
-        padding: 20px;
-        border-radius: 8px;
-        margin-bottom: 30px;
-    }
-    .tenant-info h2 {
-        margin: 0;
-        color: #333;
-    }
-    .tenant-info p {
-        margin: 5px 0 0 0;
-        color: #666;
-        font-size: 14px;
-    }
-</style>
+<link rel="stylesheet" href="{% static 'css/tenant_ledger.css' %}">
 {% endblock %}
 
 {% block content %}
@@ -125,8 +18,8 @@
         {% if tenant.unit %}
             <p><strong>Unit:</strong> {{ tenant.unit.name }} - {{ tenant.unit.property.name }}</p>
         {% endif %}
-        {% if tenant.property %}
-            <p><strong>Property:</strong> {{ tenant.property.name }}</p>
+        {% if tenant.unit and tenant.unit.property %}
+            <p><strong>Property:</strong> {{ tenant.unit.property.name }}</p>
         {% endif %}
         <p><strong>Phone:</strong> {{ tenant.phone_number }}</p>
         <p><strong>Status:</strong> 
@@ -136,6 +29,16 @@
                 <span class="badge bg-secondary">Inactive</span>
             {% endif %}
         </p>
+    </div>
+    <div class="tenant-switcher">
+        <label for="tenantLedgerTenantSelect" class="form-label">Change Tenant</label>
+        <select id="tenantLedgerTenantSelect" class="form-select">
+            {% for property_tenant in property_tenants %}
+                <option value="{% url 'tenants:tenant_ledger' property_tenant.id %}" {% if property_tenant.id == tenant.id %}selected{% endif %}>
+                    {{ property_tenant.first_name }} {{ property_tenant.last_name }}{% if property_tenant.unit %} - {{ property_tenant.unit.name }}{% endif %}
+                </option>
+            {% endfor %}
+        </select>
     </div>
 </div>
 
@@ -181,6 +84,7 @@
                     <thead>
                         <tr>
                             <th>Date</th>
+                            <th>Code</th>
                             <th>Description</th>
                             <th class="text-end">Debit (Invoice)</th>
                             <th class="text-end">Credit (Payment)</th>
@@ -192,6 +96,7 @@
                         {% for entry in ledger_entries %}
                             <tr>
                                 <td>{{ entry.date|date:"M d, Y" }}</td>
+                                <td class="fw-semibold">{{ entry.code|default:"-" }}</td>
                                 <td>
                                     {{ entry.description }}
                                     {% if entry.is_overdue %}
@@ -251,7 +156,7 @@
 
 <!-- Download/Export Button -->
 <div class="mt-4">
-    <button class="btn btn-primary" onclick="window.print()">
+    <button id="printLedgerButton" class="btn btn-primary" type="button">
         <i class="fas fa-print"></i> Print Ledger
     </button>
 </div>
@@ -259,13 +164,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    // Highlight overdue items
-    document.addEventListener('DOMContentLoaded', function() {
-        const overdueElements = document.querySelectorAll('.badge-overdue');
-        overdueElements.forEach(el => {
-            el.closest('tr').style.backgroundColor = 'rgba(255, 107, 107, 0.1)';
-        });
-    });
-</script>
+<script src="{% static 'js/tenant_ledger.js' %}" defer></script>
 {% endblock %}
