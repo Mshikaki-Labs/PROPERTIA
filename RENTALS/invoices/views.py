@@ -10,6 +10,7 @@ from django.shortcuts import render
 from django.http import HttpResponse
 
 from .models import Invoice, InvoicePayment
+from .services import allocate_credit_to_rent_invoice, set_payment_status_from_balance
 from properties.models import Property
 from units.models import Unit
 from tenants.models import Tenant
@@ -21,12 +22,12 @@ def invoice_list(request):
     # Handle Single Invoice Generation
     if request.method == "POST" and 'single_generate' in request.POST:
         try:
-            unit_id = request.POST.get('unit')
+            property_id = request.POST.get('property') or request.POST.get('unit')
             due_date_str = request.POST.get('due_date')
             inv_type = request.POST.get('type')
             
             # Validate inputs
-            if not unit_id or not due_date_str or not inv_type:
+            if not property_id or not due_date_str or not inv_type:
                 return render(request, 'invoices/invoices_view.html', {
                     'invoices': Invoice.objects.filter(unit__property__user=request.user).order_by('-due_date'),
                     'properties': Property.objects.filter(user=request.user),
@@ -34,41 +35,37 @@ def invoice_list(request):
                     'error': 'Please fill in all fields'
                 })
             
-            # Get unit
-            unit = Unit.objects.get(id=unit_id, property__user=request.user)
-            
             # Convert date string to datetime object
             due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
+
+            property_obj = Property.objects.get(id=property_id, user=request.user)
+            units = Unit.objects.filter(property=property_obj)
             
-            # Get tenant assigned to this unit
-            tenant = unit.get_assigned_tenant()
-            
-            if not tenant:
-                return render(request, 'invoices/invoices_view.html', {
-                    'invoices': Invoice.objects.filter(unit__property__user=request.user).order_by('-due_date'),
-                    'properties': Property.objects.filter(user=request.user),
-                    'units': Unit.objects.filter(property__user=request.user),
-                    'error': f'No tenant assigned to unit {unit.name}'
-                })
-            
-            # Create invoice
-            Invoice.objects.create(
-                user=request.user,
-                unit=unit,
-                tenant=tenant,
-                amount=unit.rent_amount,
-                type=inv_type,
-                due_date=due_date
-            )
+            created_count = 0
+            for unit in units:
+                tenant = unit.get_assigned_tenant()
+                if not tenant:
+                    continue
+
+                invoice = Invoice.objects.create(
+                    user=request.user,
+                    unit=unit,
+                    tenant=tenant,
+                    amount=unit.rent_amount,
+                    type=inv_type,
+                    due_date=due_date
+                )
+                allocate_credit_to_rent_invoice(invoice)
+                created_count += 1
             
             return redirect('invoices:invoice_list')
         
-        except Unit.DoesNotExist:
+        except Property.DoesNotExist:
             return render(request, 'invoices/invoices_view.html', {
                 'invoices': Invoice.objects.filter(unit__property__user=request.user).order_by('-due_date'),
                 'properties': Property.objects.filter(user=request.user),
                 'units': Unit.objects.filter(property__user=request.user),
-                'error': 'Unit not found'
+                'error': 'Property not found'
             })
         except Exception as e:
             return render(request, 'invoices/invoices_view.html', {
@@ -96,7 +93,7 @@ def invoice_list(request):
             
             if tenant:
                 # Create invoice with the unit's rent amount
-                Invoice.objects.create(
+                invoice = Invoice.objects.create(
                     user=request.user,
                     unit=unit,
                     tenant=tenant,
@@ -104,6 +101,7 @@ def invoice_list(request):
                     type=inv_type,
                     due_date=due_date
                 )
+                allocate_credit_to_rent_invoice(invoice)
         
         return redirect('invoices:invoice_list')
 
@@ -225,6 +223,8 @@ def attach_payment_to_invoice(request):
         # Check if payment balance can cover this amount
         if amount_applied > payment.balance:
             return JsonResponse({'success': False, 'message': f'Payment remaining balance KES {payment.balance} is less than requested KES {amount_applied}'})
+        if amount_applied > invoice.get_remaining_balance():
+            return JsonResponse({'success': False, 'message': f'Invoice remaining balance KES {invoice.get_remaining_balance()} is less than requested KES {amount_applied}'})
         
         # Check if invoice attachment already exists
         existing = InvoicePayment.objects.filter(invoice=invoice, payment=payment).first()
@@ -242,10 +242,7 @@ def attach_payment_to_invoice(request):
         payment.balance -= amount_applied
         
         # Update payment status to claimed only if balance is 0
-        if payment.balance <= 0:
-            payment.status = 'claimed'
-        
-        payment.save()
+        set_payment_status_from_balance(payment)
         
         # Update invoice status
         invoice.update_status()
@@ -330,6 +327,18 @@ def update_invoice_payment(request):
         # Calculate the difference
         old_amount = invoice_payment.amount_applied
         difference = new_amount - old_amount
+        invoice = invoice_payment.invoice
+        invoice_remaining_without_this_payment = invoice.get_remaining_balance() + old_amount
+
+        if new_amount <= 0:
+            return JsonResponse({'success': False, 'message': 'Amount must be greater than 0'})
+
+        # Do not let an edit overpay the invoice.
+        if new_amount > invoice_remaining_without_this_payment:
+            return JsonResponse({
+                'success': False,
+                'message': f'Invoice only has KES {invoice_remaining_without_this_payment} available for this payment'
+            })
         
         # Check if payment has enough balance
         if difference > 0:
@@ -346,17 +355,10 @@ def update_invoice_payment(request):
         # Update payment balance
         payment = invoice_payment.payment
         payment.balance -= difference
-        
-        # Update status
-        if payment.balance <= 0:
-            payment.status = 'claimed'
-        else:
-            payment.status = 'unclaimed'
-        
-        payment.save()
+
+        set_payment_status_from_balance(payment)
         
         # Update invoice status
-        invoice = invoice_payment.invoice
         invoice.update_status()
         
         return JsonResponse({
@@ -395,8 +397,7 @@ def remove_invoice_payment(request):
         
         # Restore payment balance
         payment.balance += amount_applied
-        payment.status = 'unclaimed'
-        payment.save()
+        set_payment_status_from_balance(payment)
         
         # Update invoice status
         invoice.update_status()

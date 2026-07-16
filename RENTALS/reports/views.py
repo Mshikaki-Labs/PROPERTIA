@@ -25,15 +25,23 @@ def report_generator(request):
     units = Unit.objects.filter(user=request.user)
     invoices = Invoice.objects.filter(user=request.user)
     payments = Payment.objects.filter(user=request.user)
+    water_bills = WaterBill.objects.filter(user=request.user)
 
     if property_id:
         units = units.filter(property_id=property_id)
         invoices = invoices.filter(unit__property_id=property_id)
         payments = payments.filter(property_id=property_id)
+        water_bills = water_bills.filter(unit__property_id=property_id)
 
-    if start_date and end_date:
-        invoices = invoices.filter(due_date__range=[start_date, end_date])
-        payments = payments.filter(date__range=[start_date, end_date])
+    if start_date:
+        invoices = invoices.filter(due_date__gte=start_date)
+        payments = payments.filter(date__gte=start_date)
+        water_bills = water_bills.filter(due_date__gte=start_date)
+
+    if end_date:
+        invoices = invoices.filter(due_date__lte=end_date)
+        payments = payments.filter(date__lte=end_date)
+        water_bills = water_bills.filter(due_date__lte=end_date)
 
     # 3. Calculate Summary Stats
     total_units = units.count()
@@ -42,7 +50,7 @@ def report_generator(request):
     
     rent_expected = invoices.filter(type='Rent').aggregate(Sum('amount'))['amount__sum'] or 0
     rent_collected = payments.aggregate(Sum('amount'))['amount__sum'] or 0
-    water_total = WaterBill.objects.filter(user=request.user).aggregate(Sum('amount'))['amount__sum'] or 0
+    water_total = water_bills.aggregate(Sum('amount'))['amount__sum'] or 0
     
     collection_rate = 0
     if rent_expected > 0:

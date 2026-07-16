@@ -16,7 +16,7 @@
     </div>
 
     <div class="card shadow-sm border-0 mb-4 bg-light">
-        <form method="GET" class="card-body row g-3">
+        <form method="GET" class="card-body row g-3 align-items-end">
             <div class="col-md-2">
                 <label class="form-label small text-muted mb-1">Property</label>
                 <select name="property" class="form-select border-0">
@@ -44,15 +44,18 @@
                     <option value="Unpaid" {% if selected_status == "Unpaid" %}selected{% endif %}>Unpaid</option>
                 </select>
             </div>
-            <div class="col-md-2">
-                <label class="form-label small text-muted mb-1">From Date</label>
-                <input type="date" name="start_date" class="form-control border-0" value="{{ selected_start_date }}" aria-label="Start date">
+            <div class="col-md-4">
+                <label class="form-label small text-muted mb-1">Date Range</label>
+                <div class="row g-2">
+                    <div class="col-sm-6">
+                        <input type="date" name="start_date" class="form-control border-0" value="{{ selected_start_date }}" aria-label="Start date">
+                    </div>
+                    <div class="col-sm-6">
+                        <input type="date" name="end_date" class="form-control border-0" value="{{ selected_end_date }}" aria-label="End date">
+                    </div>
+                </div>
             </div>
             <div class="col-md-2">
-                <label class="form-label small text-muted mb-1">To Date</label>
-                <input type="date" name="end_date" class="form-control border-0" value="{{ selected_end_date }}" aria-label="End date">
-            </div>
-            <div class="col-md-2 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary w-100">FILTER</button>
             </div>
         </form>
@@ -69,7 +72,10 @@
                         <th>Unit</th>
                         <th>Tenant</th>
                         <th>Type</th>
+                        <th>Rent Month</th>
                         <th>Amount</th>
+                        <th>Amount Paid</th>
+                        <th>Balance Due</th>
                         <th>Due Date</th>
                         <th>Status</th>
                         <th>Actions</th>
@@ -84,7 +90,10 @@
                         <td>{{ inv.unit.name }}</td>
                         <td>{{ inv.tenant.first_name }} {{ inv.tenant.last_name }}</td>
                         <td>{{ inv.type }}</td>
+                        <td>{{ inv.due_date|date:"M Y" }}</td>
                         <td>KES {{ inv.amount }}</td>
+                        <td>KES {{ inv.get_amount_paid|floatformat:2 }}</td>
+                        <td class="fw-semibold">KES {{ inv.get_remaining_balance|floatformat:2 }}</td>
                         <td>{{ inv.due_date|date:"d/m/Y" }}</td>
                         <td>
                             {% if inv.status == 'Paid' %}
@@ -96,7 +105,7 @@
                             {% endif %}
                         </td>
                         <td>
-                            <button class="btn btn-primary btn-sm rounded attachPaymentBtn" data-invoice-id="{{ inv.id }}" data-bs-toggle="modal" data-bs-target="#attachPaymentModal">Attach Payment</button>
+                            <button class="btn btn-primary btn-sm rounded attachPaymentBtn" data-invoice-id="{{ inv.id }}" data-bs-toggle="modal" data-bs-target="#attachPaymentModal" {% if inv.invoice_payments.exists %}disabled title="Payment already attached"{% endif %}>Attach Payment</button>
                             {% if user.profile.role == 'admin' or user.profile.role == 'landlord' %}
                                 <button class="btn btn-sm btn-light border editPaymentsBtn" data-invoice-id="{{ inv.id }}" data-bs-toggle="modal" data-bs-target="#editPaymentsModal" title="Edit Attached Payments"><i class="bi bi-pencil"></i></button>
                             {% endif %}
@@ -158,10 +167,10 @@
                 <input type="hidden" name="single_generate" value="true">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Select Unit</label>
-                        <select name="unit" class="form-select bg-light border-0" required>
-                            <option selected disabled>Select Unit</option>
-                            {% for u in units %}<option value="{{ u.id }}">{{ u.name }} - {{ u.property.name }}</option>{% endfor %}
+                        <label class="form-label">Select Property</label>
+                        <select name="property" class="form-select bg-light border-0" required>
+                            <option selected disabled>Select Property</option>
+                            {% for p in properties %}<option value="{{ p.id }}">{{ p.name }}</option>{% endfor %}
                         </select>
                     </div>
                     <div class="mb-3">
@@ -221,6 +230,12 @@
                     <select id="paymentSelect" class="form-select">
                         <option value="">-- Select a payment --</option>
                     </select>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Amount to Apply</label>
+                    <input type="number" id="amountToApplyInput" class="form-control" step="0.01" min="0.01" placeholder="0.00">
+                    <div class="form-text">Enter the part of this payment that should clear this invoice month.</div>
                 </div>
 
                 <div class="mb-3">
@@ -314,6 +329,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const paymentSelect = document.getElementById('paymentSelect');
     const attachPaymentBtn = document.getElementById('attachPaymentBtn');
     const attachError = document.getElementById('attachError');
+    const amountToApplyInput = document.getElementById('amountToApplyInput');
     let currentInvoiceId = null;
 
     function getCookie(name) {
@@ -416,7 +432,7 @@ document.addEventListener('DOMContentLoaded', function() {
                         const option = document.createElement('option');
                         option.value = payment.id;
                         const codePrefix = payment.code ? `${payment.code} - ` : '';
-                        option.textContent = `${codePrefix}KES ${payment.amount} - ${payment.date}${payment.description ? ' (' + payment.description + ')' : ''}`;
+                        option.textContent = `${codePrefix}KES ${payment.amount} (credit KES ${payment.balance}) - ${payment.date}${payment.description ? ' (' + payment.description + ')' : ''}`;
                         option.dataset.balance = payment.balance;
                         option.dataset.amount = payment.amount;
                         paymentSelect.appendChild(option);
@@ -424,6 +440,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
                     // Reset form
                     paymentSelect.value = '';
+                    amountToApplyInput.value = '';
+                    amountToApplyInput.removeAttribute('max');
                     attachError.style.display = 'none';
                 } else {
                     attachError.textContent = data.message;
@@ -442,11 +460,17 @@ document.addEventListener('DOMContentLoaded', function() {
             const selectedOption = this.options[this.selectedIndex];
             const paymentBalance = parseFloat(selectedOption.dataset.balance);
             const paymentAmount = parseFloat(selectedOption.dataset.amount);
+            const invoiceDue = parseFloat(document.getElementById('amountDue').textContent.replace('KES ', ''));
+            const defaultAmount = Math.min(paymentBalance, invoiceDue);
             
             // Show payment details
             document.getElementById('paymentRemaining').innerHTML = `<strong>Remaining on this payment: KES ${paymentBalance.toFixed(2)}</strong><br><small>Total payment: KES ${paymentAmount.toFixed(2)}</small>`;
+            amountToApplyInput.value = defaultAmount.toFixed(2);
+            amountToApplyInput.max = defaultAmount.toFixed(2);
         } else {
             document.getElementById('paymentRemaining').innerHTML = 'Select a payment to see available balance';
+            amountToApplyInput.value = '';
+            amountToApplyInput.removeAttribute('max');
         }
     });
 
@@ -461,9 +485,13 @@ document.addEventListener('DOMContentLoaded', function() {
         const selectedOption = paymentSelect.options[paymentSelect.selectedIndex];
         const paymentBalance = parseFloat(selectedOption.dataset.balance);
         const invoiceDue = parseFloat(document.getElementById('amountDue').textContent.replace('KES ', ''));
-        
-        // Amount to apply is minimum of payment balance and invoice due
-        const amountToApply = Math.min(paymentBalance, invoiceDue);
+        const amountToApply = parseFloat(amountToApplyInput.value);
+
+        if (isNaN(amountToApply) || amountToApply <= 0 || amountToApply > paymentBalance || amountToApply > invoiceDue) {
+            attachError.textContent = `Amount must be greater than 0 and no more than KES ${Math.min(paymentBalance, invoiceDue).toFixed(2)}`;
+            attachError.style.display = 'block';
+            return;
+        }
 
         const formData = new FormData();
         formData.append('invoice_id', currentInvoiceId);

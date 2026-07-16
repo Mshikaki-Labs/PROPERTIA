@@ -142,6 +142,46 @@
     </div>
 
     <!-- Arrears Table -->
+    {% comment %} <div class="card arrears-card">
+        <div class="card-header">
+            <h5 class="mb-0">
+                <i class="fas fa-calendar-alt"></i> Monthly Rent Arrears
+            </h5>
+        </div>
+        <div class="card-body">
+            {% if monthly_arrears %}
+                <div class="table-responsive">
+                    <table class="table table-hover arrears-table mb-0">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th>Tenant</th>
+                                <th>Unit</th>
+                                <th>Monthly Arrears</th>
+                                <th>Accumulated Arrears</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for item in monthly_arrears %}
+                                <tr>
+                                    <td>{{ item.month|date:"M Y" }}</td>
+                                    <td>{{ item.tenant.first_name }} {{ item.tenant.last_name }}</td>
+                                    <td>{{ item.unit.name }} ({{ item.unit.property.name }})</td>
+                                    <td class="amount-large">KES {{ item.monthly_arrears|floatformat:2 }}</td>
+                                    <td class="amount-large">KES {{ item.accumulated_arrears|floatformat:2 }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <div class="alert alert-success mb-0">
+                    <i class="fas fa-check-circle"></i> No monthly rent arrears found matching your filters.
+                </div>
+            {% endif %}
+        </div>
+    </div> {% endcomment %}
+
     <div class="card arrears-card">
         <div class="card-header">
             <h5 class="mb-0">
@@ -211,7 +251,6 @@
                         </tbody>
                     </table>
                 </div>
-                {% include 'templates/includes/pagination.html' %}
             {% else %}
                 <div class="alert alert-success alert-dismissible fade show" role="alert">
                     <i class="fas fa-check-circle"></i>
@@ -219,6 +258,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
                 </div>
             {% endif %}
+            {% include 'templates/includes/pagination.html' %}
         </div>
     </div>
 

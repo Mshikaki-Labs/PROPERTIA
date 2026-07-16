@@ -22,7 +22,7 @@
     <div class="card shadow-sm border-0 mb-4">
         <div class="card-body">
             <h5 class="mb-3">Filters</h5>
-            <form method="GET" class="row g-3">
+            <form method="GET" class="row g-3 align-items-end">
                 <div class="col-md-3">
                     <label class="form-label small text-muted mb-1">Property</label>
                     <select name="property" class="form-select">
@@ -40,15 +40,18 @@
                         <option value="unclaimed" {% if selected_status == "unclaimed" %}selected{% endif %}>Unclaimed</option>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <label class="form-label small text-muted mb-1">From Date</label>
-                    <input type="date" name="start_date" class="form-control" value="{{ selected_start_date }}" aria-label="Start date">
+                <div class="col-md-4">
+                    <label class="form-label small text-muted mb-1">Date Range</label>
+                    <div class="row g-2">
+                        <div class="col-sm-6">
+                            <input type="date" name="start_date" class="form-control" value="{{ selected_start_date }}" aria-label="Start date">
+                        </div>
+                        <div class="col-sm-6">
+                            <input type="date" name="end_date" class="form-control" value="{{ selected_end_date }}" aria-label="End date">
+                        </div>
+                    </div>
                 </div>
                 <div class="col-md-2">
-                    <label class="form-label small text-muted mb-1">To Date</label>
-                    <input type="date" name="end_date" class="form-control" value="{{ selected_end_date }}" aria-label="End date">
-                </div>
-                <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary w-100">FILTER</button>
                 </div>
             </form>
@@ -72,6 +75,9 @@
                         <th>Tenant</th>
                         <th>Code</th>
                         <th>Amount</th>
+                        <th>Allocated</th>
+                        <th>Credit</th>
+                        <th>Covers</th>
                         <th>Details</th>
                         <th>Status</th>
                     </tr>
@@ -88,6 +94,24 @@
                         <td>{{ payment.tenant.first_name }} {{ payment.tenant.last_name }}</td>
                         <td class="fw-semibold">{{ payment.code|default:"-" }}</td>
                         <td class="fw-bold">KES {{ payment.amount }}</td>
+                        <td>KES {{ payment.allocated_amount|floatformat:2 }}</td>
+                        <td>
+                            {% if payment.remaining_credit > 0 %}
+                                <span class="badge bg-info-subtle text-info rounded-pill px-3">KES {{ payment.remaining_credit|floatformat:2 }}</span>
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="small">
+                            {% if payment.allocation_summary %}
+                                {{ payment.allocation_summary }}
+                                {% if payment.allocation_count > 1 %}
+                                    <span class="badge bg-primary-subtle text-primary rounded-pill ms-1">split</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">Unallocated credit</span>
+                            {% endif %}
+                        </td>
                         <td class="text-muted small">{{ payment.description|default:"-" }}</td>
                         <td>
                             <span class="badge {% if payment.status == 'claimed' %}bg-success-subtle text-success{% else %}bg-warning-subtle text-warning{% endif %} rounded-pill px-3">
@@ -97,7 +121,7 @@
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="9" class="text-center py-4 text-muted">No payments found matching your criteria.</td>
+                        <td colspan="12" class="text-center py-4 text-muted">No payments found matching your criteria.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
@@ -172,7 +196,7 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold">CSV or XLSX File</label>
                         <input type="file" id="paymentsFile" name="file" class="form-control" accept=".csv,.xlsx" required>
-                        <small class="text-muted d-block mt-2"><strong>Required Headers:</strong> PROPERTY, HOUSE_NUMNER, DATE, CODE, DETAILS, AMOUNT</small>
+                        <small class="text-muted d-block mt-2"><strong>Required Headers:</strong> PROPERTY, HOUSE_NUMBER, DATE, CODE, DETAILS, AMOUNT</small>
                     </div>
                 </div>
                 <div class="modal-footer border-0 px-4 pb-4">
