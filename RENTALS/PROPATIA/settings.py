@@ -25,6 +25,7 @@ SECRET_KEY = 'django-insecure-+j55zg2#^k++gt&ceo)qogmkiui*0=tv0-kkjnxpio+(@+65e5
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+#144- contabo ip 
 ALLOWED_HOSTS = ['144.91.79.169','127.0.0.1']
 
 
