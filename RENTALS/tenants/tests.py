@@ -193,12 +193,74 @@ class TenantLedgerTests(TestCase):
             rent_amount='5000.00',
             description='Test unit',
         )
+        self.same_property_unit = Unit.objects.create(
+            user=self.user,
+            property=self.property,
+            name='A2',
+            rent_amount='6000.00',
+            description='Same property unit',
+        )
         self.tenant = Tenant.objects.create(
             first_name='Jane',
             last_name='Doe',
             phone_number='0712345678',
             next_of_kin_phone_number='0798765432',
             unit=self.unit,
+            status='active',
+        )
+        self.same_property_tenant = Tenant.objects.create(
+            first_name='John',
+            last_name='Neighbor',
+            phone_number='0712345679',
+            next_of_kin_phone_number='0798765433',
+            unit=self.same_property_unit,
+            status='active',
+        )
+        self.other_property = Property.objects.create(
+            user=self.user,
+            name='Blue Court',
+            address='456 Side',
+            county='Nairobi',
+            total_units=1,
+            description='Other ledger property',
+        )
+        self.other_property_unit = Unit.objects.create(
+            user=self.user,
+            property=self.other_property,
+            name='B1',
+            rent_amount='7000.00',
+            description='Other property unit',
+        )
+        self.other_property_tenant = Tenant.objects.create(
+            first_name='Mary',
+            last_name='Elsewhere',
+            phone_number='0712345680',
+            next_of_kin_phone_number='0798765434',
+            unit=self.other_property_unit,
+            status='active',
+        )
+        self.other_user = User.objects.create_user(username='ledger-other-owner', password='pass12345')
+        self.unowned_property = Property.objects.create(
+            user=self.other_user,
+            name='Hidden Court',
+            address='789 Away',
+            county='Nairobi',
+            total_units=1,
+            description='Unowned ledger property',
+        )
+        self.unowned_unit = Unit.objects.create(
+            user=self.other_user,
+            property=self.unowned_property,
+            name='C1',
+            rent_amount='8000.00',
+            description='Unowned unit',
+        )
+        self.unowned_tenant = Tenant.objects.create(
+            first_name='Una',
+            last_name='Hidden',
+            phone_number='0712345681',
+            next_of_kin_phone_number='0798765435',
+            unit=self.unowned_unit,
             status='active',
         )
         self.invoice = Invoice.objects.create(
@@ -231,6 +293,21 @@ class TenantLedgerTests(TestCase):
         self.assertContains(response, 'RCT-2500')
         self.assertContains(response, 'Partial rent payment')
         self.assertContains(response, 'INV-')
+
+    def test_ledger_tenant_switcher_only_lists_tenants_from_same_owned_property(self):
+        response = self.client.get(reverse('tenants:tenant_ledger', args=[self.tenant.id]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Change Tenant')
+        self.assertContains(response, 'Jane Doe - A1')
+        self.assertContains(response, 'John Neighbor - A2')
+        self.assertNotContains(response, 'Mary Elsewhere - B1')
+        self.assertNotContains(response, 'Una Hidden - C1')
+
+    def test_ledger_blocks_tenants_from_other_users(self):
+        response = self.client.get(reverse('tenants:tenant_ledger', args=[self.unowned_tenant.id]))
+
+        self.assertEqual(response.status_code, 404)
 
 
 class TenantListCleanupTests(TestCase):

@@ -1,4 +1,6 @@
 document.addEventListener('DOMContentLoaded', function() {
+    const unitsPage = document.getElementById('unitsPage');
+    const deleteUnitsUrl = unitsPage ? unitsPage.dataset.deleteUrl : '/units/delete/';
     const selectAllCheckbox = document.getElementById('selectAllCheckbox');
     const unitCheckboxes = document.querySelectorAll('.unit-checkbox');
     const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
@@ -162,10 +164,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
         
         if (confirm(`Are you sure you want to delete ${selectedIds.length} unit/s? This action cannot be undone.`)) {
+            if (!window.downloadSelectedRowsBeforeDelete('.unit-checkbox:checked', 'units-before-delete')) return;
+
             const formData = new FormData();
             selectedIds.forEach(id => formData.append('unit_ids[]', id));
             
-            fetch('{% url "units:delete_units" %}', {
+            fetch(deleteUnitsUrl, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value || ''
