@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/6.0/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -20,13 +21,14 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-+j55zg2#^k++gt&ceo)qogmkiui*0=tv0-kkjnxpio+(@+65e5'
+SECRET_KEY = os.environ.get('DJANGO_SECRET_KEY', 'django-insecure-+j55zg2#^k++gt&ceo)qogmkiui*0=tv0-kkjnxpio+(@+65e5')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Defaults to True for local dev; set DJANGO_DEBUG=False on the production server.
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
-#144- contabo ip 
-ALLOWED_HOSTS = ['144.91.79.169','127.0.0.1']
+#144- contabo ip
+ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', '144.91.79.169,127.0.0.1,localhost',).split(',')
 
 
 # Application definition
@@ -61,6 +63,7 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'PROPATIA.middleware.ContentSecurityPolicyMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -146,8 +149,20 @@ MEDIA_ROOT = BASE_DIR / 'media'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
-LOGIN_REDIRECT_URL = 'dashboard_home'  # Or whatever the name of your dashboard URL is
+LOGIN_REDIRECT_URL = 'dashboard_home'
 LOGOUT_REDIRECT_URL = 'accounts:login'
 
 
 SECURE_CROSS_ORIGIN_OPENER_POLICY = None
+
+# HTTPS security settings (enable by setting DJANGO_ENABLE_HTTPS=True on the production server)
+# Do NOT enable on local dev — the development server only supports HTTP.
+if os.environ.get('DJANGO_ENABLE_HTTPS', 'False') == 'True':
+    SECURE_SSL_REDIRECT = True
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_HSTS_SECONDS = 31536000  # 1 year
+    SECURE_HSTS_INCLUDE_SUBDOMAINS = True
+    SECURE_HSTS_PRELOAD = True
+    SECURE_CONTENT_TYPE_NOSNIFF = True

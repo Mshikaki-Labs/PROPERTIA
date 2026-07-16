@@ -1,9 +1,11 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.db.models import Q
 from .models import Property
 from .forms import PropertyForm
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
+from accounts.access_utils import get_accessible_properties, has_property_access
 
 @login_required
 def property_list(request):
@@ -15,7 +17,7 @@ def property_list(request):
             property_obj.save()
             return redirect('properties:properties_home')
     
-    properties = Property.objects.filter(user=request.user)
+    properties = get_accessible_properties(request.user)
     form = PropertyForm()
     return render(request, 'properties/propertyIndex.html', {
         'properties': properties,
@@ -25,7 +27,12 @@ def property_list(request):
 @login_required
 def edit_property(request, pk):
     """Edit a property"""
-    property_obj = get_object_or_404(Property, pk=pk, user=request.user)
+    property_obj = get_object_or_404(
+        Property.objects.filter(
+            Q(user=request.user) | Q(granted_accesses__user=request.user)
+        ).distinct(),
+        pk=pk,
+    )
     
     if request.method == "POST":
         form = PropertyForm(request.POST, instance=property_obj)
@@ -53,12 +60,11 @@ def edit_property(request, pk):
 
 @require_POST
 def delete_properties(request):
-    """Delete selected properties"""
+    """Delete selected properties (owner-only: only the property's own user can delete)."""
     property_ids = request.POST.getlist('property_ids[]')
     
     if property_ids:
-        Property.objects.filter(id__in=property_ids).delete()
+        Property.objects.filter(id__in=property_ids, user=request.user).delete()
         return JsonResponse({'success': True, 'message': f'{len(property_ids)} property/ies deleted successfully'})
     
     return JsonResponse({'success': False, 'message': 'No properties selected'})
-

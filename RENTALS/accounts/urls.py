@@ -9,6 +9,7 @@ urlpatterns = [
     path('login/', auth_views.LoginView.as_view(template_name='accounts/login.html'), name='login'),
     path('logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('invitations/', views.invitations_view, name='invitations'),
+    path('invitations/delete/<int:pk>/', views.delete_invitation, name='delete_invitation'),
     path('invitations/accept/<uuid:token>/', views.accept_invitation_view, name='accept_invitation'),
     
     # Settings & Profile

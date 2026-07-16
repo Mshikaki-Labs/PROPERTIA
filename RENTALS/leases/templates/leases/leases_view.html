@@ -65,8 +65,8 @@
                   <td>{{ lease.unit.property.name }}</td>
                   <td>{{ lease.unit.name }}</td>
                   <td>{{ lease.tenant.first_name }} {{ lease.tenant.last_name }}</td>
-                  <td>${{ lease.monthly_rent }}</td>
-                  <td>${{ lease.deposit_held }}</td>
+                  <td>KES {{ lease.monthly_rent }}</td>
+                  <td>KES {{ lease.deposit_held }}</td>
                   <td>{% if lease.is_active %}<span class="badge bg-success">Active</span>{% else %}<span class="badge bg-secondary">Inactive</span>{% endif %}</td>
                </tr>
                {% empty %}

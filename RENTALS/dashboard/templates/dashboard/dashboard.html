@@ -6,37 +6,35 @@
 
 {% block content %}
     <div class="app-container">
-
-        <!-- Main Content -->
-        <div class="main-content">
-            <div class="header">
-                <button class="mobile-menu-toggle">
-                    <i class="fas fa-bars"></i>
-                </button>
-                <div class="search-bar">
-                    <i class="fas fa-search"></i>
-                    <input type="text" placeholder="Search properties, tenants, leases...">
+        <div class="header">
+            <button class="mobile-menu-toggle">
+                <i class="fas fa-bars"></i>
+            </button>
+            <div class="search-bar">
+                <i class="fas fa-search"></i>
+                <input type="text" placeholder="Search properties, tenants, leases...">
+            </div>
+            <div class="header-actions">
+                <div class="notification-bell">
+                    <i class="fas fa-bell"></i>
+                    <span class="notification-badge">3</span>
                 </div>
-                <div class="header-actions">
-                    <div class="notification-bell">
-                        <i class="fas fa-bell"></i>
-                        <span class="notification-badge">3</span>
-                    </div>
-                    <button class="theme-toggle" id="themeToggle">
-                        <i class="fas fa-moon"></i>
-                    </button>
-                    <div class="user-profile">
-                        <div class="avatar">{{ user_initial }}</div>
-                        <div class="user-name">{{ user_name }}</div>
-                    </div>
+                <button class="theme-toggle" id="themeToggle">
+                    <i class="fas fa-moon"></i>
+                </button>
+                <div class="user-profile">
+                    <div class="avatar">{{ user_initial }}</div>
+                    <div class="user-name">{{ user_name }}</div>
                 </div>
             </div>
+        </div>
 
             <div class="dashboard">
                 <h1 class="page-title"><i class="fas fa-home"></i> Dashboard</h1>
                 
                 <!-- Stats Cards -->
                 <div class="stats-container">
+                    <a href="{% url 'properties:properties_home' %}" class="stat-card-link">
                     <div class="stat-card">
                         <div class="stat-header">
                             <div>
@@ -52,7 +50,9 @@
                             <span>{{ total_properties|add:0 }} properties in system</span>
                         </div>
                     </div>
+                    </a>
                     
+                    <a href="{% url 'tenants:tenant_list' %}" class="stat-card-link">
                     <div class="stat-card">
                         <div class="stat-header">
                             <div>
@@ -68,7 +68,9 @@
                             <span>{{ total_tenants|add:0 }} active tenants</span>
                         </div>
                     </div>
+                    </a>
                     
+                    <a href="{% url 'payments:payment_list' %}" class="stat-card-link">
                     <div class="stat-card">
                         <div class="stat-header">
                             <div>
@@ -84,7 +86,9 @@
                             <span>{{ revenue_increase }}% from last month</span>
                         </div>
                     </div>
+                    </a>
                     
+                    <a href="{% url 'maintenance_home' %}" class="stat-card-link">
                     <div class="stat-card">
                         <div class="stat-header">
                             <div>
@@ -100,6 +104,7 @@
                             <span>{{ maintenance_requests }} pending</span>
                         </div>
                     </div>
+                    </a>
                 </div>
                 
                 <!-- Main Content Grid -->
@@ -203,7 +208,6 @@
                 </div>
             </div>
         </div>
-    </div>
 
     <script src="{% static 'js/main.js' %}"></script>
 

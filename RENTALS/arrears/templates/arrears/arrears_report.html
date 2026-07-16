@@ -66,7 +66,15 @@
                 </select>
             </div>
 
-            <div class="col-md-3">
+            <div class="col-md-2">
+                <label class="form-label">Date Range</label>
+                <input type="text" name="start_date" class="form-control datepicker" value="{{ selected_start_date }}" placeholder="Start Date" aria-label="Start Date">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label">&nbsp;</label>
+                <input type="text" name="end_date" class="form-control datepicker" value="{{ selected_end_date }}" placeholder="End Date" aria-label="End Date">
+            </div>
+            <div class="col-md-2">
                 <label for="resetBtn" class="form-label">&nbsp;</label>
                 <a href="{% url 'arrears:arrears_report' %}" class="btn btn-outline-secondary w-100">
                     <i class="fas fa-redo"></i> Reset

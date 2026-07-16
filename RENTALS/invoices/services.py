@@ -49,7 +49,6 @@ def allocate_payment_to_rent_invoices(payment):
 
     allocations = []
     invoices = Invoice.objects.filter(
-        user=payment.user,
         tenant=payment.tenant,
         type=RENT_TYPE,
     ).exclude(status='Paid').order_by('due_date', 'id')
@@ -82,7 +81,6 @@ def allocate_credit_to_rent_invoice(invoice):
 
     allocations = []
     payments = Payment.objects.select_for_update().filter(
-        user=invoice.user,
         tenant=invoice.tenant,
         balance__gt=0,
     ).order_by('date', 'id')
@@ -101,9 +99,9 @@ def allocate_credit_to_rent_invoice(invoice):
     return allocations
 
 
-def get_rent_balance_summary(user, tenant=None, through_date=None):
-    invoices = Invoice.objects.filter(user=user, type=RENT_TYPE)
-    credits = Payment.objects.filter(user=user, balance__gt=0)
+def get_rent_balance_summary(accessible_properties, tenant=None, through_date=None):
+    invoices = Invoice.objects.filter(unit__property__in=accessible_properties, type=RENT_TYPE)
+    credits = Payment.objects.filter(property__in=accessible_properties, balance__gt=0)
 
     if tenant:
         invoices = invoices.filter(tenant=tenant)

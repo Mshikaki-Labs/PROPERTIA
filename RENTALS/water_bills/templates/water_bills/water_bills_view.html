@@ -25,8 +25,10 @@
         </div>
     </div>
 
-    <div class="card shadow-sm border-0 mb-4 bg-light">
-        <form method="GET" class="card-body row g-3">
+    <div class="card shadow-sm border-0 mb-4">
+        <div class="card-body">
+            <h5 class="mb-3">Filters</h5>
+            <form method="GET" class="row g-3">
             <div class="col-md-2">
                 <label class="form-label small text-muted mb-1">Property</label>
                 <select name="property" class="form-select border-0">
@@ -54,17 +56,18 @@
                 </select>
             </div>
             <div class="col-md-2">
-                <label class="form-label small text-muted mb-1">From Date</label>
-                <input type="date" name="start_date" class="form-control border-0" value="{{ selected_start_date }}" aria-label="Start date">
+                <label class="form-label small text-muted mb-1">Date Range</label>
+                <input type="text" name="start_date" class="form-control datepicker" value="{{ selected_start_date }}" placeholder="Start Date" aria-label="Start Date">
             </div>
             <div class="col-md-2">
-                <label class="form-label small text-muted mb-1">To Date</label>
-                <input type="date" name="end_date" class="form-control border-0" value="{{ selected_end_date }}" aria-label="End date">
+                <label class="form-label small text-muted mb-1">&nbsp;</label>
+                <input type="text" name="end_date" class="form-control datepicker" value="{{ selected_end_date }}" placeholder="End Date" aria-label="End Date">
             </div>
             <div class="col-md-2 d-flex align-items-end">
                 <button type="submit" class="btn btn-primary w-100">FILTER</button>
             </div>
         </form>
+        </div>
     </div>
 
     <div class="card shadow-sm border-0">
@@ -146,7 +149,7 @@
 
 <div class="modal fade" id="generateModal" tabindex="-1">
     <div class="modal-dialog">
-        <div class="modal-content border-0 shadow-lg" style="border-radius: 12px;">
+        <div class="modal-content border-0 shadow-lg">
             <div class="modal-header border-0 pb-0">
                 <h5 class="modal-title fw-bold">Generate Water Invoice</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>

@@ -24,7 +24,7 @@ class Profile(models.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     first_name = models.CharField(max_length=30, blank=True)
     last_name = models.CharField(max_length=30, blank=True)
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=LANDLORD) # New Field
+    role = models.CharField(max_length=20, choices=ROLE_CHOICES, default=LANDLORD)
     phone_number = models.CharField(max_length=15, blank=True)
     avatar = models.ImageField(upload_to='avatars/', default='default_avatar.png')
     notification_enabled = models.BooleanField(default=True)
@@ -54,6 +54,7 @@ class Invitation(models.Model):
     expires_at = models.DateTimeField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default=PENDING)
     created_at = models.DateTimeField(auto_now_add=True)
+    properties = models.ManyToManyField('properties.Property', blank=True)
 
     class Meta:
         ordering = ['-created_at']
@@ -73,6 +74,22 @@ class Invitation(models.Model):
             self.status = self.EXPIRED
             self.save(update_fields=['status'])
 
+
+class PropertyAccess(models.Model):
+    """Tracks which users have been granted access to which properties."""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='property_accesses')
+    property = models.ForeignKey('properties.Property', on_delete=models.CASCADE, related_name='granted_accesses')
+    granted_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, related_name='granted_accesses')
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'property')
+        verbose_name_plural = 'Property accesses'
+
+    def __str__(self):
+        return f"{self.user.username} → {self.property.name}"
+
+
 # Signals to handle profile creation/saving
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):
@@ -82,4 +99,3 @@ def create_user_profile(sender, instance, created, **kwargs):
 @receiver(post_save, sender=User)
 def save_user_profile(sender, instance, **kwargs):
     instance.profile.save()
-

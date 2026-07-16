@@ -15,6 +15,7 @@ from .models import WaterBill, WaterBillPayment, WaterBillPaymentAllocation
 from properties.models import Property
 from units.models import Unit
 from PROPATIA.pagination import paginate_queryset
+from accounts.access_utils import get_accessible_properties
 
 
 def normalize_header(header):
@@ -171,7 +172,6 @@ def allocate_payment_to_water_bills(payment):
 
     allocations = []
     water_bills = WaterBill.objects.select_for_update().filter(
-        user=payment.user,
         unit=payment.unit,
         tenant=payment.tenant,
     ).exclude(status='Paid').order_by('due_date', 'id')
@@ -206,6 +206,8 @@ def allocate_payment_to_water_bills(payment):
 
 @login_required
 def water_bill_list(request):
+    accessible_props = get_accessible_properties(request.user)
+
     if request.method == "POST":
         unit_id = request.POST.get('unit')
         prev = int(request.POST.get('previous_reading'))
@@ -213,7 +215,7 @@ def water_bill_list(request):
         rate = float(request.POST.get('rate'))
         date = request.POST.get('due_date')
         
-        unit = Unit.objects.get(id=unit_id, user=request.user)
+        unit = Unit.objects.filter(property__in=accessible_props).get(id=unit_id)
         tenant = unit.tenants.filter(status='active').first()
         
         if tenant:
@@ -234,7 +236,7 @@ def water_bill_list(request):
     selected_start_date = request.GET.get('start_date', '')
     selected_end_date = request.GET.get('end_date', '')
 
-    bills = WaterBill.objects.filter(user=request.user).select_related('unit', 'unit__property', 'tenant').order_by('-due_date')
+    bills = WaterBill.objects.filter(unit__property__in=accessible_props).select_related('unit', 'unit__property', 'tenant').order_by('-due_date')
 
     if selected_property:
         bills = bills.filter(unit__property_id=selected_property)
@@ -249,11 +251,13 @@ def water_bill_list(request):
 
     pagination = paginate_queryset(request, bills)
 
+    units_qs = Unit.objects.filter(property__in=accessible_props).select_related('property').order_by('property__name', 'name')
+
     context = {
         'bills': pagination['page_obj'],
-        'properties': Property.objects.filter(user=request.user),
-        'units': Unit.objects.filter(user=request.user).select_related('property').order_by('property__name', 'name'),
-        'occupied_units': Unit.objects.filter(user=request.user, status='occupied').select_related('property').order_by('property__name', 'name'),
+        'properties': accessible_props,
+        'units': units_qs,
+        'occupied_units': units_qs.filter(status='occupied'),
         'can_delete_water_bills': is_app_admin(request.user),
         'selected_property': selected_property,
         'selected_unit': selected_unit,
@@ -347,15 +351,15 @@ def bulk_generate_water_bills(request):
                 errors.append(f'Row {idx}: Missing required fields (PROPERTY, HOUSE NUMBER, PREVIOUS READING, CURRENT READING, CONSUMPTION, RATE, AMOUNT)')
                 continue
 
-            property_obj = Property.objects.filter(name__iexact=property_name, user=request.user).first()
+            accessible_props = get_accessible_properties(request.user)
+            property_obj = accessible_props.filter(name__iexact=property_name).first()
             if not property_obj:
-                errors.append(f'Row {idx}: Property "{property_name}" not found for this user')
+                errors.append(f'Row {idx}: Property "{property_name}" not found or not accessible')
                 continue
 
             unit_obj = Unit.objects.filter(
                 property=property_obj,
                 name__iexact=str(house_number).strip(),
-                user=request.user,
             ).first()
             if not unit_obj:
                 errors.append(f'Row {idx}: House number "{house_number}" not found in property "{property_name}"')
@@ -465,12 +469,14 @@ def bulk_generate_water_bills(request):
 
 @login_required
 def water_bill_payment_list(request):
+    accessible_props = get_accessible_properties(request.user)
+
     selected_property = request.GET.get('property', '')
     selected_status = request.GET.get('status', '')
     selected_start_date = request.GET.get('start_date', '')
     selected_end_date = request.GET.get('end_date', '')
 
-    payments = WaterBillPayment.objects.filter(user=request.user).select_related(
+    payments = WaterBillPayment.objects.filter(property__in=accessible_props).select_related(
         'property',
         'unit',
         'tenant',
@@ -512,7 +518,7 @@ def water_bill_payment_list(request):
 
     context = {
         'payments': pagination['page_obj'],
-        'properties': Property.objects.filter(user=request.user),
+        'properties': accessible_props,
         'can_delete_water_bill_payments': is_app_admin(request.user),
         'selected_property': selected_property,
         'selected_status': selected_status,
@@ -600,15 +606,15 @@ def upload_water_bill_payments(request):
                 errors.append(f'Row {idx}: Missing required fields (PROPERTY, HOUSE_NUMBER, DATE, AMOUNT)')
                 continue
 
-            property_obj = Property.objects.filter(name__iexact=property_name, user=request.user).first()
+            accessible_props = get_accessible_properties(request.user)
+            property_obj = accessible_props.filter(name__iexact=property_name).first()
             if not property_obj:
-                errors.append(f'Row {idx}: Property "{property_name}" not found for this user')
+                errors.append(f'Row {idx}: Property "{property_name}" not found or not accessible')
                 continue
 
             unit_obj = Unit.objects.filter(
                 property=property_obj,
                 name__iexact=str(house_number).strip(),
-                user=request.user,
             ).first()
             if not unit_obj:
                 errors.append(f'Row {idx}: House number "{house_number}" not found in property "{property_name}"')

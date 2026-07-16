@@ -12,6 +12,7 @@ from invoices.models import Invoice
 from payments.models import Payment
 from water_bills.models import WaterBill
 from PROPATIA.pagination import paginate_queryset
+from accounts.access_utils import get_accessible_properties
 
 @login_required
 def report_generator(request):
@@ -20,12 +21,13 @@ def report_generator(request):
     start_date = request.GET.get('start_date')
     end_date = request.GET.get('end_date')
 
-    # 2. Base Querysets
-    properties = Property.objects.filter(user=request.user)
-    units = Unit.objects.filter(user=request.user)
-    invoices = Invoice.objects.filter(user=request.user)
-    payments = Payment.objects.filter(user=request.user)
-    water_bills = WaterBill.objects.filter(user=request.user)
+    # 2. Base Querysets (scoped to accessible properties)
+    accessible_props = get_accessible_properties(request.user)
+    properties = accessible_props
+    units = Unit.objects.filter(property__in=accessible_props)
+    invoices = Invoice.objects.filter(unit__property__in=accessible_props)
+    payments = Payment.objects.filter(property__in=accessible_props)
+    water_bills = WaterBill.objects.filter(unit__property__in=accessible_props)
 
     if property_id:
         units = units.filter(property_id=property_id)

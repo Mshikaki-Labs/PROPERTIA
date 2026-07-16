@@ -15,7 +15,7 @@
         <div class="card-body">
             <h5 class="mb-3">Filters</h5>
             <form method="GET" class="row g-3">
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <select name="property" class="form-select">
                         <option value="">All Properties</option>
                         {% for p in properties %}
@@ -23,12 +23,20 @@
                         {% endfor %}
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <select name="status" class="form-select">
                         <option value="">All Status</option>
                         <option value="pending" {% if selected_status == "pending" %}selected{% endif %}>Pending</option>
                         <option value="completed" {% if selected_status == "completed" %}selected{% endif %}>Completed</option>
                     </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-muted mb-1">Date Range</label>
+                    <input type="text" name="start_date" class="form-control datepicker" value="{{ selected_start_date }}" placeholder="Start Date" aria-label="Start Date">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small text-muted mb-1">&nbsp;</label>
+                    <input type="text" name="end_date" class="form-control datepicker" value="{{ selected_end_date }}" placeholder="End Date" aria-label="End Date">
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary w-100">FILTER</button>

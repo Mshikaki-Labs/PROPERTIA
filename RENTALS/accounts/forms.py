@@ -3,6 +3,7 @@ from django.contrib.auth.models import User
 from django.utils import timezone
 
 from .models import Invitation, Profile
+from properties.models import Property
 from django.contrib.auth.forms import UserCreationForm
 
 class UserRegisterForm(UserCreationForm):
@@ -51,15 +52,32 @@ class ProfileUpdateForm(forms.ModelForm):
 
 
 class InvitationCreateForm(forms.ModelForm):
+    properties = forms.ModelMultipleChoiceField(
+        queryset=Property.objects.none(),
+        widget=forms.SelectMultiple(attrs={
+            'class': 'form-control tom-select-multi',
+            'placeholder': 'Search and select properties...',
+        }),
+        required=True,
+        help_text='Select one or more properties to grant access to.',
+    )
+
     class Meta:
         model = Invitation
-        fields = ['email', 'first_name', 'last_name', 'role']
+        fields = ['email', 'first_name', 'last_name', 'role', 'properties']
         widgets = {
             'email': forms.EmailInput(attrs={'class': 'form-control', 'placeholder': 'name@example.com'}),
             'first_name': forms.TextInput(attrs={'class': 'form-control'}),
             'last_name': forms.TextInput(attrs={'class': 'form-control'}),
             'role': forms.Select(attrs={'class': 'form-control'}),
         }
+
+    def __init__(self, *args, user=None, **kwargs):
+        self._user = user
+        super().__init__(*args, **kwargs)
+        if user:
+            self.fields['properties'].queryset = Property.objects.filter(user=user)
+        self.fields['properties'].label = 'Grant Access To Properties'
 
     def clean_email(self):
         email = self.cleaned_data['email'].strip().lower()

@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.utils import timezone
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Q
 import csv
 import json
 from decimal import Decimal, InvalidOperation
@@ -17,6 +17,7 @@ from properties.models import Property
 from django.contrib.auth.decorators import login_required
 from PROPATIA.pagination import paginate_queryset
 from .forms import UnitForm
+from accounts.access_utils import get_accessible_properties, filter_units_by_accessible_properties
 
 @login_required
 def units_list(request):
@@ -28,16 +29,17 @@ def units_list(request):
             unit.user = request.user
             unit.save()
             return redirect('units:units_list')
-        # If form is NOT valid, we don't reset it; we let it pass 
-        # to the template so the user can see the error messages.
     else:
-        # 2. Handle GET (Initial Page Load)
         form = UnitForm(user=request.user)
 
-    # 3. Filtering Logic (Common to both or just GET)
-    units = Unit.objects.filter(user=request.user).select_related('property').prefetch_related(
+    # Filter units to only those in accessible properties
+    accessible_props = get_accessible_properties(request.user)
+    units = Unit.objects.filter(
+        property__in=accessible_props
+    ).select_related('property').prefetch_related(
         Prefetch('tenants', queryset=Tenant.objects.order_by('last_name'), to_attr='prefetched_tenants')
     ).order_by('property__name', 'name')
+    
     property_filter = request.GET.get('property')
     status_filter = request.GET.get('status')
     
@@ -46,13 +48,28 @@ def units_list(request):
     if status_filter:
         units = units.filter(status=status_filter)
             
+    # Populate tenant_name from prefetched tenants (via active lease)
+    from leases.models import Lease
+    unit_ids = [u.id for u in units]
+    active_leases = Lease.objects.filter(unit_id__in=unit_ids, is_active=True).select_related('tenant')
+    lease_by_unit = {l.unit_id: l for l in active_leases}
+    for unit in units:
+        lease = lease_by_unit.get(unit.id)
+        if lease and lease.tenant:
+            unit.tenant_name = f"{lease.tenant.first_name} {lease.tenant.last_name}"
+        elif unit.prefetched_tenants:
+            t = unit.prefetched_tenants[0]
+            unit.tenant_name = f"{t.first_name} {t.last_name}"
+        else:
+            unit.tenant_name = None
+
     today_date = timezone.now().date()
     pagination = paginate_queryset(request, units)
 
     context = {
         'units': pagination['page_obj'],
-        'form': form, # This is now guaranteed to exist!
-        'properties': Property.objects.filter(user=request.user),
+        'form': form,
+        'properties': accessible_props,
         'tenants': Tenant.objects.filter(unit__isnull=True).order_by('first_name', 'last_name'),
         'today_date': today_date,
         'selected_property': property_filter,
@@ -64,7 +81,8 @@ def units_list(request):
 
 def assign_tenant(request, pk):
     """Assign a tenant to a unit"""
-    unit = get_object_or_404(Unit, pk=pk)
+    accessible_props = get_accessible_properties(request.user)
+    unit = get_object_or_404(Unit.objects.filter(property__in=accessible_props), pk=pk)
 
     if request.method == 'POST':
         tenant_id = request.POST.get('tenant_id')
@@ -78,10 +96,8 @@ def assign_tenant(request, pk):
                     return JsonResponse({'success': False, 'message': 'Selected tenant is not available or does not belong to you.'}, status=400)
                 if tenant.leases.filter(is_active=True).exists():
                     return JsonResponse({'success': False, 'message': 'Tenant already has an active lease.'}, status=400)
-                # Check for existing active lease on unit
                 if Lease.objects.filter(unit=unit, is_active=True).exists():
                     return JsonResponse({'success': False, 'message': f'Unit {unit.name} already has an active lease.'}, status=400)
-                # Create lease
                 lease = Lease.objects.create(
                     user=request.user,
                     tenant=tenant,
@@ -93,7 +109,6 @@ def assign_tenant(request, pk):
                 )
                 tenant.unit = unit
                 tenant.save()
-                # Lease creation will handle unit status and tenant activation
                 if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
                     return JsonResponse({'success': True, 'message': f'Lease created: {tenant.first_name} {tenant.last_name} assigned to {unit.name}'})
                 else:
@@ -103,7 +118,6 @@ def assign_tenant(request, pk):
         else:
             return JsonResponse({'success': False, 'message': 'Please select a tenant'}, status=400)
 
-    # Return available tenants for modal
     if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
         tenants = Tenant.objects.filter(unit__isnull=True).exclude(leases__is_active=True).order_by('last_name')
         return JsonResponse({
@@ -116,16 +130,15 @@ def assign_tenant(request, pk):
 
 def detach_tenant(request, pk):
     """Detach tenant from a unit"""
-    unit = get_object_or_404(Unit, pk=pk)
+    accessible_props = get_accessible_properties(request.user)
+    unit = get_object_or_404(Unit.objects.filter(property__in=accessible_props), pk=pk)
     
     if request.method == 'POST':
         from leases.models import Lease
-        # Find and deactivate the active lease for this unit
         lease = Lease.objects.filter(unit=unit, is_active=True).first()
         if lease:
             lease.is_active = False
             lease.save()
-            # Optionally set tenant.unit = None if needed
             if hasattr(lease.tenant, 'unit'):
                 lease.tenant.unit = None
                 lease.tenant.save()
@@ -139,7 +152,8 @@ def delete_units(request):
     unit_ids = request.POST.getlist('unit_ids[]')
     
     if unit_ids:
-        Unit.objects.filter(id__in=unit_ids).delete()
+        accessible_props = get_accessible_properties(request.user)
+        Unit.objects.filter(id__in=unit_ids, property__in=accessible_props).delete()
         return JsonResponse({'success': True, 'message': f'{len(unit_ids)} unit/s deleted successfully'})
     
     return JsonResponse({'success': False, 'message': 'No units selected'})
@@ -233,6 +247,7 @@ def upload_units(request):
         if not rows:
             return JsonResponse({'success': False, 'message': 'File is empty'})
         
+        accessible_props = get_accessible_properties(request.user)
         created_count = 0
         errors = []
         
@@ -248,9 +263,9 @@ def upload_units(request):
                     errors.append(f'Row {idx}: Missing required fields (property, name, rent_amount)')
                     continue
                 
-                property_obj = Property.objects.filter(name__iexact=property_name, user=request.user).first()
+                property_obj = accessible_props.filter(name__iexact=property_name).first()
                 if not property_obj:
-                    errors.append(f'Row {idx}: Property "{property_name}" not found for this user')
+                    errors.append(f'Row {idx}: Property "{property_name}" not found or not accessible')
                     continue
                 
                 try:

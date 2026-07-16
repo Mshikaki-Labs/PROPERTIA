@@ -20,12 +20,12 @@
                 </select>
             </div>
             <div class="col-md-3">
-                <label class="small fw-bold text-muted">Start Date</label>
-                <input type="text" name="start_date" class="form-control bg-light border-0 datepicker" value="{{ selected_start_date|default:'' }}">
+                <label class="small fw-bold text-muted">Date Range</label>
+                <input type="text" name="start_date" class="form-control datepicker" value="{{ selected_start_date|default:'' }}" placeholder="Start Date" aria-label="Start Date">
             </div>
             <div class="col-md-3">
-                <label class="small fw-bold text-muted">End Date</label>
-                <input type="text" name="end_date" class="form-control bg-light border-0 datepicker" value="{{ selected_end_date|default:'' }}">
+                <label class="small fw-bold text-muted">&nbsp;</label>
+                <input type="text" name="end_date" class="form-control datepicker" value="{{ selected_end_date|default:'' }}" placeholder="End Date" aria-label="End Date">
             </div>
             <div class="col-md-2 d-flex gap-2">
                 <button type="submit" class="btn btn-primary px-3"><i class="bi bi-file-earmark-text"></i> Generate</button>

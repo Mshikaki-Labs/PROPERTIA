@@ -1,4 +1,5 @@
 from datetime import timedelta
+import logging
 
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth import login, logout, authenticate
@@ -8,8 +9,11 @@ from django.urls import reverse
 from django.utils import timezone
 
 from .forms import InvitationAcceptForm, InvitationCreateForm, UserRegisterForm, UserUpdateForm, ProfileUpdateForm
-from .models import Invitation, Profile
+from .models import Invitation, Profile, PropertyAccess
 from django.http import JsonResponse
+from django.views.decorators.http import require_POST
+
+logger = logging.getLogger(__name__)
 
 
 
@@ -48,19 +52,20 @@ def invitations_view(request):
 
     created_invite_url = None
     if request.method == 'POST':
-        form = InvitationCreateForm(request.POST)
+        form = InvitationCreateForm(request.POST, user=request.user)
         if form.is_valid():
             invitation = form.save(commit=False)
             invitation.invited_by = request.user
             invitation.expires_at = timezone.now() + timedelta(days=7)
             invitation.save()
+            form.save_m2m()  # Save the M2M properties
             created_invite_url = _invitation_url(request, invitation)
             messages.success(request, 'Invitation created. Share the link with the invited user.')
-            form = InvitationCreateForm()
+            form = InvitationCreateForm(user=request.user)
     else:
-        form = InvitationCreateForm()
+        form = InvitationCreateForm(user=request.user)
 
-    invitations = Invitation.objects.select_related('invited_by')
+    invitations = Invitation.objects.filter(invited_by=request.user).select_related('invited_by').prefetch_related('properties')
     for invitation in invitations:
         invitation.mark_expired()
 
@@ -73,7 +78,7 @@ def invitations_view(request):
 
 
 def accept_invitation_view(request, token):
-    invitation = get_object_or_404(Invitation, token=token)
+    invitation = get_object_or_404(Invitation.objects.prefetch_related('properties'), token=token)
     if not invitation.can_accept():
         invitation.mark_expired()
         return render(request, 'accounts/invitation_invalid.html', {
@@ -91,6 +96,15 @@ def accept_invitation_view(request, token):
             user.save()
             user.profile.role = invitation.role
             user.profile.save()
+
+            # Grant property access to the new user
+            for prop in invitation.properties.all():
+                PropertyAccess.objects.create(
+                    user=user,
+                    property=prop,
+                    granted_by=invitation.invited_by,
+                )
+
             invitation.status = Invitation.ACCEPTED
             invitation.accepted_at = timezone.now()
             invitation.save(update_fields=['status', 'accepted_at'])
@@ -105,6 +119,18 @@ def accept_invitation_view(request, token):
         'invitation': invitation,
         'title': 'Accept Invitation',
     })
+
+@login_required
+@require_POST
+def delete_invitation(request, pk):
+    """Delete an invitation (admin only)."""
+    if not _is_app_admin(request.user):
+        return JsonResponse({'success': False, 'message': 'Only admins can delete invitations.'}, status=403)
+    invitation = get_object_or_404(Invitation, pk=pk, invited_by=request.user)
+    invitation.delete()
+    messages.success(request, f'Invitation for {invitation.email} has been deleted.')
+    return JsonResponse({'success': True})
+
 
 @login_required
 def profile_settings(request):

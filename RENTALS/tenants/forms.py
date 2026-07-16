@@ -1,6 +1,7 @@
 from django import forms
 from .models import Tenant
 from properties.models import Property
+from accounts.access_utils import get_accessible_properties
 
 class TenantForm(forms.ModelForm):
     # Add a property field that's not in the model
@@ -16,7 +17,7 @@ class TenantForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         queryset = Property.objects.none()
         if user is not None and user.is_authenticated:
-            queryset = Property.objects.filter(user=user).order_by('name')
+            queryset = get_accessible_properties(user).order_by('name')
         self.fields['property'].queryset = queryset
         if self.instance and self.instance.pk and self.instance.unit_id:
             self.fields['property'].initial = self.instance.unit.property_id

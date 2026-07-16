@@ -1,5 +1,7 @@
 from django import forms
 from .models import Payment
+from units.models import Unit
+from accounts.access_utils import get_accessible_properties
 
 class PaymentForm(forms.ModelForm):
     class Meta:
@@ -18,5 +20,6 @@ class PaymentForm(forms.ModelForm):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
         if user:
-            self.fields['property'].queryset = self.fields['property'].queryset.filter(user=user)
-            self.fields['unit'].queryset = self.fields['unit'].queryset.filter(user=user).select_related('property').order_by('property__name', 'name')
+            acc_props = get_accessible_properties(user)
+            self.fields['property'].queryset = acc_props
+            self.fields['unit'].queryset = Unit.objects.filter(property__in=acc_props).select_related('property').order_by('property__name', 'name')
