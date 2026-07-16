@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure-+j55zg2#^k++gt&ceo)qogmkiui*0=tv0-kkjnxpio+(@+65e5
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['144.91.79.169','127.0.0.1']
 
 
 # Application definition
@@ -147,3 +147,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
 LOGIN_REDIRECT_URL = 'dashboard_home'  # Or whatever the name of your dashboard URL is
 LOGOUT_REDIRECT_URL = 'accounts:login'
+
+
+SECURE_CROSS_ORIGIN_OPENER_POLICY = None
