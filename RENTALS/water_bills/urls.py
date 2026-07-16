@@ -22,4 +22,9 @@ app_name = 'water_bills'
 urlpatterns = [
     # Point to a view function, NOT an include()
     path('', views.water_bill_list, name='water_bills_home'), 
+    path('delete/', views.delete_water_bills, name='delete_water_bills'),
+    path('bulk-generate/', views.bulk_generate_water_bills, name='bulk_generate_water_bills'),
+    path('payments/', views.water_bill_payment_list, name='water_bill_payments'),
+    path('payments/delete/', views.delete_water_bill_payments, name='delete_water_bill_payments'),
+    path('upload/', views.upload_water_bill_payments, name='upload_water_bill_payments'),
 ]

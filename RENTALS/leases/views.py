@@ -1,3 +1,4 @@
+from django.http import JsonResponse
 from django.shortcuts import render
 from .models import Lease
 from properties.models import Property
@@ -9,16 +10,26 @@ from PROPATIA.pagination import paginate_queryset
 def index(request):
     leases = Lease.objects.filter(user=request.user, is_active=True).select_related('tenant', 'unit', 'unit__property').order_by('unit__property__name', 'unit__name')
     
-    selected_property = request.GET.get('property')
-    selected_unit = request.GET.get('unit')
-    
-    if selected_property:
+    selected_property = request.GET.get('property', '')
+    selected_unit = request.GET.get('unit', '')
+
+    properties = Property.objects.filter(user=request.user).order_by('name')
+    allowed_property_ids = set(properties.values_list('id', flat=True))
+
+    if selected_property and selected_property.isdigit() and int(selected_property) in allowed_property_ids:
         leases = leases.filter(unit__property_id=selected_property)
-    if selected_unit:
+    else:
+        selected_property = ''
+
+    units = Unit.objects.filter(user=request.user).select_related('property').order_by('property__name', 'name')
+    if selected_property:
+        units = units.filter(property_id=selected_property)
+
+    allowed_unit_ids = set(units.values_list('id', flat=True))
+    if selected_unit and selected_unit.isdigit() and int(selected_unit) in allowed_unit_ids:
         leases = leases.filter(unit_id=selected_unit)
-    
-    properties = Property.objects.filter(user=request.user)
-    units = Unit.objects.filter(user=request.user)
+    else:
+        selected_unit = ''
 
     pagination = paginate_queryset(request, leases)
     
@@ -31,3 +42,24 @@ def index(request):
     }
     context.update(pagination)
     return render(request, 'leases/leases_view.html', context)
+
+
+@login_required
+def units_for_property(request):
+    property_id = request.GET.get('property', '')
+    units = Unit.objects.filter(user=request.user).select_related('property').order_by('property__name', 'name')
+
+    if property_id:
+        if not property_id.isdigit() or not Property.objects.filter(id=property_id, user=request.user).exists():
+            return JsonResponse({'units': []})
+        units = units.filter(property_id=property_id)
+
+    unit_options = [
+        {
+            'id': unit.id,
+            'name': unit.name,
+            'property': unit.property.name,
+        }
+        for unit in units
+    ]
+    return JsonResponse({'units': unit_options})
