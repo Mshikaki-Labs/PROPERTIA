@@ -131,7 +131,7 @@ textarea:focus,
 .card.shadow-sm {
     background: var(--card-bg);
     border: 1px solid var(--border-color) !important;
-    border-radius: 16px !important;
+    border-radius: var(--border-radius) !important;
     box-shadow: 0 10px 25px rgba(0,0,0,0.02) !important;
 }
 

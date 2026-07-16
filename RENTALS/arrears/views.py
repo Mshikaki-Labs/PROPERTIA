@@ -12,13 +12,15 @@ from invoices.models import Invoice
 from payments.models import Payment
 from .models import Arrears
 from PROPATIA.pagination import paginate_queryset
+from accounts.access_utils import get_accessible_properties
 
 
 def sync_user_arrears(user):
     """Keep arrears records aligned with currently overdue invoices."""
     today = timezone.now().date()
+    accessible_props = get_accessible_properties(user)
     overdue_invoices = Invoice.objects.filter(
-        user=user,
+        unit__property__in=accessible_props,
         due_date__lt=today,
         status__in=['Unpaid', 'Partially Paid'],
     ).select_related('tenant', 'unit', 'user')
@@ -65,6 +67,7 @@ def sync_user_arrears(user):
 @login_required
 def arrears_report(request):
     sync_user_arrears(request.user)
+    accessible_props = get_accessible_properties(request.user)
 
     # 1. Get filter parameters
     prop_id = request.GET.get('property')
@@ -72,8 +75,10 @@ def arrears_report(request):
     tenant_id = request.GET.get('tenant')
     status_filter = request.GET.get('status', 'all')
 
-    # 2. Base Query: Start with Arrears records
-    arrears_records = Arrears.objects.filter(user=request.user).select_related(
+    # 2. Base Query: Start with Arrears records (scoped to accessible properties)
+    arrears_records = Arrears.objects.filter(
+        unit__property__in=accessible_props
+    ).select_related(
         'invoice', 'tenant', 'unit', 'unit__property'
     ).order_by('-date_marked')
 
@@ -117,12 +122,12 @@ def arrears_report(request):
 
     pagination = paginate_queryset(request, arrears_records)
 
-    # 5. Get available filter options
-    properties = Property.objects.filter(user=request.user)
-    units = Unit.objects.filter(property__user=request.user).select_related('property').order_by('property__name', 'name')
+    # 5. Get available filter options (scoped to accessible properties)
+    properties = accessible_props
+    units = Unit.objects.filter(property__in=accessible_props).select_related('property').order_by('property__name', 'name')
     if prop_id:
         units = units.filter(property_id=prop_id)
-    tenants = Tenant.objects.filter(unit__property__user=request.user, status='active').order_by('first_name', 'last_name')
+    tenants = Tenant.objects.filter(unit__property__in=accessible_props, status='active').order_by('first_name', 'last_name')
     if prop_id:
         tenants = tenants.filter(unit__property_id=prop_id)
 

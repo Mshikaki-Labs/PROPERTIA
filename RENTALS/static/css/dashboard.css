@@ -102,7 +102,7 @@ body {
 .menu-item a {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: flex-start;
     gap: 12px;
     padding: 12px 20px;
     color: rgba(255, 255, 255, 0.8);
@@ -552,24 +552,7 @@ a:hover {
     animation: fadeIn 0.4s ease;
 }
 
-.menu-item:hover, .menu-item.active {
-                background: rgba(255, 255, 255, 0.1);
-                color: white;
-                border-left: 4px solid white;
-            }
-
-            .menu-item i {
-                width: 24px;
-                text-align: center;
-                font-size: 18px;
-            }
-
-            /* Main Content */
-            .main-content {
-                flex: 1;
-                margin-left: var(--sidebar-width);
-                transition: var(--transition);
-            }
+            /* All styles below this point are preserved from the original dashboard.css and dashboard_base.html inline styles */
 
             .header {
                 height: var(--header-height);
@@ -742,7 +725,17 @@ a:hover {
                 background: #1e293b;
             }
 
-            .stat-card:hover {
+            .stat-card-link {
+                display: block;
+                text-decoration: none;
+                color: inherit;
+            }
+
+            .stat-card-link:hover {
+                text-decoration: none;
+            }
+
+            .stat-card-link .stat-card:hover {
                 transform: translateY(-5px);
                 box-shadow: 0 10px 20px rgba(0, 0, 0, 0.15);
             }
@@ -802,42 +795,9 @@ a:hover {
                 gap: 25px;
             }
 
-            .card {
-                background: white;
-                border-radius: var(--border-radius);
-                box-shadow: var(--box-shadow);
-                margin-bottom: 25px;
-                transition: var(--transition);
-            }
-
-            .dark-mode .card {
-                background: #1e293b;
-            }
-
             .card:hover {
                 transform: translateY(-3px);
                 box-shadow: 0 6px 12px rgba(0, 0, 0, 0.1);
-            }
-
-            .card-header {
-                padding: 20px;
-                border-bottom: 1px solid #eee;
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-            }
-
-            .dark-mode .card-header {
-                border-bottom: 1px solid #334155;
-            }
-
-            .card-title {
-                font-size: 18px;
-                font-weight: 600;
-            }
-
-            .card-body {
-                padding: 20px;
             }
 
             .property-grid {
@@ -998,35 +958,6 @@ a:hover {
                 font-size: 13px;
             }
 
-            .action-btn {
-                background: var(--primary);
-                color: white;
-                border: none;
-                padding: 8px 15px;
-                border-radius: 6px;
-                cursor: pointer;
-                font-weight: 500;
-                transition: var(--transition);
-                display: inline-flex;
-                align-items: center;
-                gap: 5px;
-            }
-
-            .action-btn:hover {
-                background: var(--secondary);
-                transform: translateY(-2px);
-            }
-
-            .action-btn.outline {
-                background: transparent;
-                border: 1px solid var(--primary);
-                color: var(--primary);
-            }
-
-            .action-btn.outline:hover {
-                background: rgba(67, 97, 238, 0.1);
-            }
-
             .action-btn.danger {
                 background: var(--danger);
             }
@@ -1043,54 +974,10 @@ a:hover {
                 background: #e3860d;
             }
 
-            .quick-actions {
-                display: grid;
-                grid-template-columns: repeat(2, 1fr);
-                gap: 15px;
-                margin-top: 15px;
-            }
-
-            .quick-action {
-                display: flex;
-                flex-direction: column;
-                align-items: center;
-                justify-content: center;
-                gap: 10px;
-                padding: 20px;
-                border-radius: var(--border-radius);
-                background: #f8fafc;
-                cursor: pointer;
-                transition: var(--transition);
-                text-align: center;
-            }
-
-            .dark-mode .quick-action {
-                background: #1e293b;
-            }
-
-            .quick-action:hover {
-                background: #f1f5f9;
-                transform: translateY(-3px);
-            }
-
-            .dark-mode .quick-action:hover {
-                background: #334155;
-            }
-
-            .quick-action i {
-                font-size: 24px;
-                color: var(--primary);
-            }
-
             .quick-action.add-property i { color: var(--success); }
             .quick-action.add-tenant i { color: var(--info); }
             .quick-action.create-lease i { color: var(--warning); }
             .quick-action.maintenance i { color: var(--danger); }
-
-            .quick-action span {
-                font-weight: 500;
-                font-size: 14px;
-            }
 
             /* Responsive Design */
             @media (max-width: 1100px) {
@@ -1157,10 +1044,10 @@ a:hover {
                 animation: fadeIn 0.5s ease forwards;
             }
 
-            .stat-card:nth-child(1) { animation-delay: 0.1s; }
-            .stat-card:nth-child(2) { animation-delay: 0.2s; }
-            .stat-card:nth-child(3) { animation-delay: 0.3s; }
-            .stat-card:nth-child(4) { animation-delay: 0.4s; }
+            .stat-card-link:nth-child(1) .stat-card { animation-delay: 0.1s; }
+            .stat-card-link:nth-child(2) .stat-card { animation-delay: 0.2s; }
+            .stat-card-link:nth-child(3) .stat-card { animation-delay: 0.3s; }
+            .stat-card-link:nth-child(4) .stat-card { animation-delay: 0.4s; }
             .property-card:nth-child(1) { animation-delay: 0.1s; }
             .property-card:nth-child(2) { animation-delay: 0.2s; }
             .property-card:nth-child(3) { animation-delay: 0.3s; }

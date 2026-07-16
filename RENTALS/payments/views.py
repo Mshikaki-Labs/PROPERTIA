@@ -3,10 +3,6 @@ from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 from django.contrib.auth.decorators import login_required
 
-# Create your views here.
-from django.shortcuts import render
-from django.http import HttpResponse
-
 from .models import Payment
 from .forms import PaymentForm
 from invoices.models import InvoicePayment
@@ -14,6 +10,7 @@ from properties.models import Property
 from units.models import Unit
 from leases.models import Lease
 from invoices.services import allocate_payment_to_rent_invoices
+from accounts.access_utils import get_accessible_properties
 import csv
 import re
 from datetime import date, datetime
@@ -22,11 +19,10 @@ from PROPATIA.pagination import paginate_queryset
 
 
 def resolve_active_lease_tenant(user, property_obj, unit_obj):
-    if not unit_obj or unit_obj.user_id != user.id or unit_obj.property_id != property_obj.id:
+    if not unit_obj or unit_obj.property_id != property_obj.id:
         raise ValueError('Selected house/unit does not belong to the selected property')
 
     active_lease = Lease.objects.filter(
-        user=user,
         unit=unit_obj,
         is_active=True,
     ).select_related('tenant').first()
@@ -39,6 +35,8 @@ def resolve_active_lease_tenant(user, property_obj, unit_obj):
 
 @login_required
 def payment_list(request):
+    accessible_props = get_accessible_properties(request.user)
+
     if request.method == "POST":
         form = PaymentForm(request.POST, user=request.user)
         if form.is_valid():
@@ -60,8 +58,8 @@ def payment_list(request):
     selected_start_date = request.GET.get('start_date', '')
     selected_end_date = request.GET.get('end_date', '')
     
-    # Apply filters
-    payments = Payment.objects.filter(user=request.user).select_related('property', 'unit', 'tenant').order_by('date', 'id')
+    # Apply filters scoped to accessible properties
+    payments = Payment.objects.filter(property__in=accessible_props).select_related('property', 'unit', 'tenant').order_by('date', 'id')
     
     if selected_property:
         payments = payments.filter(property_id=selected_property)
@@ -74,8 +72,6 @@ def payment_list(request):
 
     if selected_end_date:
         payments = payments.filter(date__lte=selected_end_date)
-    
-    properties = Property.objects.filter(user=request.user)
     
     pagination = paginate_queryset(request, payments)
     page_payments = list(pagination['page_obj'])
@@ -102,7 +98,7 @@ def payment_list(request):
     context = {
         'payments': pagination['page_obj'],
         'form': form,
-        'properties': properties,
+        'properties': accessible_props,
         'selected_property': selected_property,
         'selected_status': selected_status,
         'selected_start_date': selected_start_date,
@@ -116,12 +112,13 @@ def payment_list(request):
 def delete_payments(request):
     """Delete selected payments"""
     try:
+        accessible_props = get_accessible_properties(request.user)
         payment_ids = request.POST.getlist('payment_ids[]')
         
         if not payment_ids:
             return JsonResponse({'success': False, 'message': 'No payments selected'})
         
-        deleted_count, _ = Payment.objects.filter(id__in=payment_ids).delete()
+        deleted_count, _ = Payment.objects.filter(id__in=payment_ids, property__in=accessible_props).delete()
         
         return JsonResponse({
             'success': True,
@@ -271,16 +268,16 @@ def upload_payments(request):
                     errors.append(f'Row {idx}: Missing required fields (PROPERTY, HOUSE_NUMBER, DATE, AMOUNT)')
                     continue
                 
-                property_obj = Property.objects.filter(name__iexact=property_name, user=request.user).first()
+                accessible_props = get_accessible_properties(request.user)
+                property_obj = accessible_props.filter(name__iexact=property_name).first()
                 if not property_obj:
-                    errors.append(f'Row {idx}: Property "{property_name}" not found for this user')
+                    errors.append(f'Row {idx}: Property "{property_name}" not found or not accessible')
                     continue
                 
                 house_number_str = str(house_number).strip()
                 unit_obj = Unit.objects.filter(
                     property=property_obj,
                     name__iexact=house_number_str,
-                    user=request.user,
                 ).first()
                 if not unit_obj:
                     errors.append(f'Row {idx}: House number "{house_number}" not found in property "{property_name}"')

@@ -1,6 +1,6 @@
 .ledger-card {
-    border-radius: 8px;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    border-radius: var(--border-radius, 10px);
+    box-shadow: var(--box-shadow, 0 4px 6px rgba(0, 0, 0, 0.1));
     margin-bottom: 20px;
 }
 
@@ -12,7 +12,7 @@
 }
 
 .stat-box {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, var(--primary-color, #3f37c9) 0%, #5a52d5 100%);
     color: white;
     padding: 20px;
     border-radius: 8px;
@@ -20,7 +20,7 @@
 }
 
 .stat-box.positive {
-    background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+    background: linear-gradient(135deg, var(--danger, #d63031) 0%, #e05555 100%);
 }
 
 .stat-box h3 {
@@ -41,27 +41,27 @@
 }
 
 .ledger-table th {
-    background-color: #f8f9fa;
+    background-color: var(--bg-light, #f8f9fa);
     font-weight: 600;
     border-bottom: 2px solid #dee2e6;
 }
 
 .ledger-table td {
     padding: 12px 8px;
-    border-bottom: 1px solid #dee2e6;
+    border-bottom: 1px solid var(--border-color, #dee2e6);
 }
 
 .ledger-table tr:hover {
-    background-color: #f8f9fa;
+    background-color: var(--bg-light, #f8f9fa);
 }
 
 .type-invoice {
-    color: #dc3545;
+    color: var(--danger, #dc3545);
     font-weight: 500;
 }
 
 .type-payment {
-    color: #28a745;
+    color: var(--success, #28a745);
     font-weight: 500;
 }
 
@@ -75,22 +75,22 @@
 }
 
 .amount-debit {
-    color: #dc3545;
+    color: var(--danger, #dc3545);
     text-align: right;
 }
 
 .amount-credit {
-    color: #28a745;
+    color: var(--success, #28a745);
     text-align: right;
 }
 
 .balance-positive {
-    color: #dc3545;
+    color: var(--danger, #dc3545);
     font-weight: 600;
 }
 
 .balance-zero {
-    color: #28a745;
+    color: var(--success, #28a745);
     font-weight: 600;
 }
 
@@ -99,7 +99,7 @@
 }
 
 .tenant-header {
-    background-color: #f8f9fa;
+    background-color: var(--bg-light, #f8f9fa);
     padding: 20px;
     border-radius: 8px;
     margin-bottom: 30px;

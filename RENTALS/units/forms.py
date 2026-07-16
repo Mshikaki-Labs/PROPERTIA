@@ -1,15 +1,16 @@
 from django import forms
 from properties.models import Property
 from .models import Unit
+from accounts.access_utils import get_accessible_properties
 
 class UnitForm(forms.ModelForm):
     def __init__(self, *args, **kwargs):
         user = kwargs.pop('user', None)
         super().__init__(*args, **kwargs)
-        queryset = Property.objects.all()
         if user is not None:
-            queryset = queryset.filter(user=user)
-        self.fields['property'].queryset = queryset
+            self.fields['property'].queryset = get_accessible_properties(user)
+        else:
+            self.fields['property'].queryset = Property.objects.none()
 
     class Meta:
         model = Unit

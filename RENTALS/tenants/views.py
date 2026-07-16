@@ -12,6 +12,7 @@ from payments.models import Payment
 from properties.models import Property
 from units.models import Unit
 from PROPATIA.pagination import paginate_queryset
+from accounts.access_utils import get_accessible_properties, filter_tenants_by_accessible_properties
 
 
 @login_required
@@ -24,12 +25,14 @@ def tenant_list(request):
     else:
         form = TenantForm(user=request.user)
 
-    user_properties = Property.objects.filter(user=request.user)
-    tenants = Tenant.objects.filter(unit__property__user=request.user).select_related('unit', 'unit__property').order_by('last_name', 'first_name')
+    accessible_props = get_accessible_properties(request.user)
+    tenants = Tenant.objects.filter(
+        unit__property__in=accessible_props
+    ).select_related('unit', 'unit__property').order_by('last_name', 'first_name')
 
     property_filter = request.GET.get('property')
     status_filter = request.GET.get('status')
-    allowed_property_ids = set(user_properties.values_list('id', flat=True))
+    allowed_property_ids = set(accessible_props.values_list('id', flat=True))
 
     if property_filter and property_filter.isdigit() and int(property_filter) in allowed_property_ids:
         tenants = tenants.filter(unit__property_id=property_filter)
@@ -44,7 +47,7 @@ def tenant_list(request):
     return render(request, 'tenants/tenants_view.html', {
         'tenants': pagination['page_obj'],
         'form': form,
-        'properties': user_properties,
+        'properties': accessible_props,
         'selected_property': property_filter,
         'selected_status': status_filter,
         **pagination,
@@ -54,25 +57,26 @@ def tenant_list(request):
 @login_required
 def available_units(request, pk):
     """Return units for a property as JSON."""
-    property_obj = get_object_or_404(Property, pk=pk, user=request.user)
-    units = Unit.objects.filter(property=property_obj, user=request.user).values('id', 'name', 'rent_amount')
+    accessible_props = get_accessible_properties(request.user)
+    property_obj = get_object_or_404(accessible_props, pk=pk)
+    units = Unit.objects.filter(property=property_obj).values('id', 'name', 'rent_amount')
     return JsonResponse({'property': property_obj.name, 'units': list(units)})
 
 
 @login_required
 def tenant_ledger(request, pk):
     """Render the tenant ledger with invoices and payments for the tenant/unit."""
+    accessible_props = get_accessible_properties(request.user)
     tenant = get_object_or_404(
         Tenant.objects.select_related('unit', 'unit__property'),
         pk=pk,
-        unit__property__user=request.user,
+        unit__property__in=accessible_props,
     )
 
     invoices = Invoice.objects.filter(tenant=tenant).select_related('unit').order_by('due_date', 'id')
     payments = Payment.objects.filter(tenant=tenant).select_related('unit').order_by('date', 'id')
     property_tenants = Tenant.objects.filter(
-        unit__property=tenant.unit.property,
-        unit__property__user=request.user,
+        unit__property__in=accessible_props,
     ).select_related('unit').order_by('unit__name', 'last_name', 'first_name')
 
     ledger_entries = []
@@ -129,10 +133,11 @@ def tenant_ledger(request, pk):
 def delete_tenants(request):
     """Delete selected tenants."""
     if request.method == 'POST':
+        accessible_props = get_accessible_properties(request.user)
         tenant_ids = request.POST.getlist('tenant_ids[]')
         deleted_count, _ = Tenant.objects.filter(
             id__in=tenant_ids,
-            unit__property__user=request.user,
+            unit__property__in=accessible_props,
         ).delete()
         return JsonResponse({'success': True, 'message': f'{deleted_count} tenant(s) deleted'})
     return JsonResponse({'success': False, 'message': 'Invalid request'})
@@ -141,10 +146,11 @@ def delete_tenants(request):
 @login_required
 def edit_tenant(request, pk):
     """Edit an existing tenant."""
+    accessible_props = get_accessible_properties(request.user)
     tenant = get_object_or_404(
         Tenant.objects.select_related('unit', 'unit__property'),
         pk=pk,
-        unit__property__user=request.user,
+        unit__property__in=accessible_props,
     )
     if request.method == 'POST':
         form = TenantForm(request.POST, request.FILES, instance=tenant, user=request.user)
