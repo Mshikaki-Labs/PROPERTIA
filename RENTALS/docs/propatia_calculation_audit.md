@@ -525,3 +525,7 @@ Source pages: `leases/templates/leases/leases_view.html`, `units/templates/units
 - Most page filters are applied before totals are calculated, so changing property, unit, status, or date filters changes the totals.
 - Payment allocation is intentionally limited by two balances: available payment credit and invoice/bill remaining balance.
 - The PDF does not include live private data; examples are artificial and only demonstrate arithmetic.
+
+
+# run with gunicorn
+-the website is run by gunicorn and code versions maintained by github
