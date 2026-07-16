@@ -1,4 +1,5 @@
 from django.db import models
+from django.contrib.auth.models import User
 
 # Create your models here.
 from properties.models import Property # Import the Property model
@@ -9,6 +10,7 @@ class Unit(models.Model):
         ('vacant', 'Vacant'),
     ]
 
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     property = models.ForeignKey(Property, on_delete=models.CASCADE, related_name='units')
     name = models.CharField(max_length=100)
     rent_amount = models.DecimalField(max_digits=10, decimal_places=2)
@@ -21,7 +23,12 @@ class Unit(models.Model):
     
     def get_assigned_tenant(self):
         """Get the currently assigned tenant for this unit"""
-        from tenants.models import Tenant
+        from leases.models import Lease
+        active_lease = self.leases.filter(is_active=True).select_related('tenant').first()
+        if active_lease:
+            return active_lease.tenant
+        if hasattr(self, 'prefetched_tenants'):
+            return self.prefetched_tenants[0] if self.prefetched_tenants else None
         return self.tenants.first()
     
     def get_tenant_display_name(self):

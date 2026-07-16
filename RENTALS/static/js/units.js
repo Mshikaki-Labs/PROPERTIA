@@ -5,7 +5,14 @@ document.addEventListener('DOMContentLoaded', function() {
     const assignButtons = document.querySelectorAll('.assignTenantBtn');
     const detachButtons = document.querySelectorAll('.detachTenantBtn');
     const assignTenantForm = document.getElementById('assignTenantForm');
+    const assignTenantInfo = document.getElementById('assignTenantInfo');
+    const startDateInput = document.getElementById('startDate');
     
+    if (startDateInput) {
+        const today = new Date().toISOString().split('T')[0];
+        startDateInput.value = today;
+    }
+
     // ======================
     // ASSIGN TENANT FUNCTIONALITY
     // ======================
@@ -37,11 +44,19 @@ document.addEventListener('DOMContentLoaded', function() {
                         option.textContent = `${tenant.first_name} ${tenant.last_name}`;
                         tenantSelect.appendChild(option);
                     });
+                    if (assignTenantInfo) {
+                        assignTenantInfo.textContent = data.message || `${data.tenants.length} tenant(s) available for ${unitName}`;
+                    }
+                    tenantSelect.disabled = false;
                 } else {
                     const option = document.createElement('option');
                     option.textContent = 'No available tenants';
                     option.disabled = true;
                     tenantSelect.appendChild(option);
+                    if (assignTenantInfo) {
+                        assignTenantInfo.textContent = `No available tenants found for ${unitName}.`; 
+                    }
+                    tenantSelect.disabled = true;
                 }
             })
             .catch(error => {
@@ -60,7 +75,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const tenantId = document.getElementById('assignTenantSelect').value;
             
             if (!tenantId) {
-                alert('Please select a tenant');
                 return;
             }
             
@@ -78,10 +92,9 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert(data.message);
                     location.reload();
-                } else {
-                    alert(data.message || 'Failed to assign tenant');
+                } else if (data && data.message) {
+                    alert(data.message);
                 }
             })
             .catch(error => {
@@ -114,15 +127,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        alert(data.message);
                         location.reload();
-                    } else {
-                        alert(data.message || 'Failed to detach tenant');
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('An error occurred while detaching the tenant');
                 });
             }
         });
@@ -157,7 +166,6 @@ document.addEventListener('DOMContentLoaded', function() {
             .map(cb => cb.value);
         
         if (selectedIds.length === 0) {
-            alert('Please select at least one unit to delete');
             return;
         }
         
@@ -175,15 +183,11 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert(data.message);
                     location.reload();
-                } else {
-                    alert(data.message || 'Failed to delete units');
                 }
             })
             .catch(error => {
                 console.error('Error:', error);
-                alert('An error occurred while deleting units');
             });
         }
     });

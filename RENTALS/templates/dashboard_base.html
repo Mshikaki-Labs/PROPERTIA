@@ -76,7 +76,7 @@
                     </div>
                     <div class="menu-item">
                         <i class="fas fa-file-contract"></i>
-                        <span><a href="{% url 'water_bills_home' %}">Water Bills</a></span>
+                        <span><a href="{% url 'water_bills:water_bills_home' %}">Water Bills</a></span>
                     </div>
                     <div class="menu-item">
                         <i class="fas fa-chart-line"></i>
@@ -86,6 +86,12 @@
                         <i class="fas fa-question-circle"></i>
                         <span><a href="{% url 'accounts:profile_settings' %}">Support</a></span>
                     </div>
+                    {% if user.is_authenticated and user.profile.role == 'admin' %}
+                    <div class="menu-item">
+                        <i class="fas fa-user-plus"></i>
+                        <span><a href="{% url 'accounts:invitations' %}">Invitations</a></span>
+                    </div>
+                    {% endif %}
                 </div>
             </div>
         </nav>
@@ -121,4 +127,3 @@
     </script>
 </body>
 </html>
-

@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect
+from django.contrib.auth.decorators import login_required
 
 # Create your views here.
 from django.shortcuts import render
@@ -7,7 +8,9 @@ from django.http import HttpResponse
 
 from .models import WaterBill
 from units.models import Unit
+from PROPATIA.pagination import paginate_queryset
 
+@login_required
 def water_bill_list(request):
     if request.method == "POST":
         unit_id = request.POST.get('unit')
@@ -16,11 +19,12 @@ def water_bill_list(request):
         rate = float(request.POST.get('rate'))
         date = request.POST.get('due_date')
         
-        unit = Unit.objects.get(id=unit_id)
+        unit = Unit.objects.get(id=unit_id, user=request.user)
         tenant = unit.tenants.filter(status='active').first()
         
         if tenant:
             WaterBill.objects.create(
+                user=request.user,
                 unit=unit,
                 tenant=tenant,
                 previous_reading=prev,
@@ -28,9 +32,14 @@ def water_bill_list(request):
                 rate=rate,
                 due_date=date
             )
-        return redirect('water_bills:list')
+        return redirect('water_bills:water_bills_home')
 
-    return render(request, 'water_bills/water_bills_view.html', {
-        'bills': WaterBill.objects.all().order_by('-due_date'),
-        'units': Unit.objects.filter(status='occupied')
-    })
+    bills = WaterBill.objects.filter(user=request.user).select_related('unit', 'unit__property', 'tenant').order_by('-due_date')
+    pagination = paginate_queryset(request, bills)
+
+    context = {
+        'bills': pagination['page_obj'],
+        'units': Unit.objects.filter(user=request.user, status='occupied')
+    }
+    context.update(pagination)
+    return render(request, 'water_bills/water_bills_view.html', context)

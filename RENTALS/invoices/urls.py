@@ -22,6 +22,7 @@ app_name = 'invoices'  # Set the app name for namespacing
 urlpatterns = [
     # Point to a view function, NOT an include()
     path('', views.invoice_list, name='invoice_list'),
+    path('delete/', views.delete_invoices, name='delete_invoices'),
     path('get-payments/', views.get_invoice_payments, name='get_payments'),
     path('attach-payment/', views.attach_payment_to_invoice, name='attach_payment'),
     path('get-attached-payments/', views.get_attached_payments, name='get_attached_payments'),

@@ -62,6 +62,7 @@
                         <th>Phone</th>
                         <th>Next of Kin</th>
                         <th>Status</th>
+                        <th>Actions</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -71,8 +72,16 @@
                             <input type="checkbox" class="form-check-input tenant-checkbox" value="{{ tenant.id }}">
                         </td>
                         <td>{{ tenant.first_name }} {{ tenant.last_name }}</td>
-                        <td>{% if tenant.unit %}{{ tenant.unit.property.name }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
-                        <td>{% if tenant.unit %}{{ tenant.unit.name }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                        <td>{% if tenant.property %}{{ tenant.property.name }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
+                        <td>
+                            {% if tenant.unit %}
+                                <div>{{ tenant.unit.name }}</div>
+                                <button type="button" class="btn btn-sm btn-outline-primary attachUnitBtn mt-1" data-bs-toggle="modal" data-bs-target="#attachUnitModal" data-tenant-id="{{ tenant.id }}" data-tenant-name="{{ tenant.first_name }} {{ tenant.last_name }}" data-unit-name="{{ tenant.unit.name }}">Change</button>
+                            {% else %}
+                                <div class="text-muted">-</div>
+                                <button type="button" class="btn btn-sm btn-outline-primary attachUnitBtn mt-1" data-bs-toggle="modal" data-bs-target="#attachUnitModal" data-tenant-id="{{ tenant.id }}" data-tenant-name="{{ tenant.first_name }} {{ tenant.last_name }}">Attach</button>
+                            {% endif %}
+                        </td>
                         <td>{{ tenant.phone_number }}</td>
                         <td>{{ tenant.next_of_kin_name|default:"-" }}</td>
                         <td>
@@ -80,15 +89,22 @@
                                 {{ tenant.status }}
                             </span>
                         </td>
+                        <td>
+                            <a href="{% url 'tenants:edit_tenant' tenant.id %}" class="btn btn-sm btn-outline-secondary">Edit</a>
+                            <a href="{% url 'tenants:tenant_ledger' tenant.id %}" class="btn btn-sm btn-outline-info" title="View Tenant Ledger">
+                                <i class="fas fa-book"></i> Ledger
+                            </a>
+                        </td>
                     </tr>
                     {% empty %}
                     <tr>
-                        <td colspan="7" class="text-center py-4 text-muted">No tenants found matching your criteria.</td>
+                        <td colspan="8" class="text-center py-4 text-muted">No tenants found matching your criteria.</td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+        {% include 'templates/includes/pagination.html' %}
     </div>
 </div>
 
@@ -99,7 +115,7 @@
                 <h5 class="modal-title fw-bold">Add New Tenant</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <form id="addTenantForm" method="post" action="{% url 'tenants:tenant_list' %}">
+            <form id="addTenantForm" method="post" action="{% url 'tenants:tenant_list' %}" enctype="multipart/form-data">
                 {% csrf_token %}
                 <div id="tenantErrors" class="alert alert-danger mx-4 mt-3" style="display: none;"></div>
                 <div class="modal-body px-4">
@@ -129,6 +145,27 @@
                         {{ form.property }}
                         {% if form.property.errors %}
                             <div class="text-danger small mt-1">{{ form.property.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">ID Card Front</label>
+                        {{ form.id_card_front }}
+                        {% if form.id_card_front.errors %}
+                            <div class="text-danger small mt-1">{{ form.id_card_front.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">ID Card Back</label>
+                        {{ form.id_card_back }}
+                        {% if form.id_card_back.errors %}
+                            <div class="text-danger small mt-1">{{ form.id_card_back.errors }}</div>
+                        {% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">KRA PIN</label>
+                        {{ form.kra_pin }}
+                        {% if form.kra_pin.errors %}
+                            <div class="text-danger small mt-1">{{ form.kra_pin.errors }}</div>
                         {% endif %}
                     </div>
                     <div class="mb-3">
@@ -185,6 +222,38 @@
     </div>
 </div>
 
+<div class="modal fade" id="attachUnitModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">Assign Unit to Tenant</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="attachUnitForm">
+                {% csrf_token %}
+                <input type="hidden" id="attachTenantId" name="tenant_id" value="">
+                <div class="modal-body px-4">
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Tenant</label>
+                        <p id="attachTenantName" class="m-0 fw-bold text-primary"></p>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">Available Units</label>
+                        <select id="attachUnitSelect" name="unit_id" class="form-select" required>
+                            <option value="">-- Select a Unit --</option>
+                        </select>
+                        <div id="attachUnitInfo" class="form-text text-muted mt-2">Select a unit to attach to this tenant.</div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 px-4 pb-4">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="submit" class="btn btn-primary">Attach Unit</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 <div class="modal fade" id="uploadTenantsModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content border-0 shadow-lg">
@@ -198,7 +267,7 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold">CSV or XLSX File</label>
                         <input type="file" id="tenantsFile" name="file" class="form-control" accept=".csv,.xlsx" required>
-                        <small class="text-muted d-block mt-2"><strong>Required Headers:</strong> first_name, last_name, phone_number, property<br><strong>Optional Headers:</strong> next_of_kin_name, next_of_kin_phone_number, description, status, unit, deposit_required, deposit_amount</small>
+                        <small class="text-muted d-block mt-2"><strong>Required Headers:</strong> first_name, last_name, phone_number, property<br><strong>Optional Headers:</strong> id_card_front, id_card_back, kra_pin, next_of_kin_name, next_of_kin_phone_number, description, status, unit, deposit_required, deposit_amount</small>
                     </div>
                 </div>
                 <div class="modal-footer border-0 px-4 pb-4">
@@ -215,85 +284,70 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const uploadForm = document.getElementById('uploadTenantsForm');
-    const addTenantForm = document.getElementById('addTenantForm');
-    
-    // Handle Add Tenant Form
-    if (addTenantForm) {
-        uploadBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            if (uploadBtn.style.display === 'none') return;
-            const fileInput = document.getElementById('tenantsFile');
-            const file = fileInput.files[0];
-            if (!file) {
-                alert('Please select a file');
-                return;
-            }
-            const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-            if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
-                alert('Please upload a CSV or XLSX file');
-                return;
-            }
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
-            fetch('/tenants/upload/', {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    alert(`Successfully uploaded ${data.count} tenants`);
-                    location.reload();
-                } else {
-                    alert(data.message || 'Failed to upload tenants');
+    const validateBtn = document.getElementById('validateTenantsBtn');
+    const uploadBtn = document.getElementById('uploadTenantsBtn');
+    const validationDiv = document.getElementById('tenantUploadValidation');
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while uploading tenants');
-            });
-        });
-                    // Success - reload page
-                    location.reload();
-                }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred');
-            });
-        });
+            }
+        }
+        return cookieValue;
     }
-    
-    if (uploadForm) {
-        // Validate button handler
-        const validateBtn = document.getElementById('validateTenantsBtn');
-        const validationDiv = document.getElementById('tenantUploadValidation');
-        const uploadBtn = document.getElementById('uploadTenantsBtn');
+
+    function isValidFile(file) {
+        if (!file) return false;
+        const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+        return validTypes.includes(file.type) || file.name.endsWith('.csv') || file.name.endsWith('.xlsx');
+    }
+
+    function showValidationResult(data) {
+        let html = `<div class="alert alert-info">Validation complete.<br>Valid rows: <b>${data.valid_rows}</b><br>Invalid rows: <b>${data.invalid_rows}</b></div>`;
+        if (data.errors && data.errors.length) {
+            html += '<ul class="list-group">';
+            data.errors.forEach(err => {
+                html += `<li class="list-group-item list-group-item-danger">${err}</li>`;
+            });
+            html += '</ul>';
+            uploadBtn.style.display = 'none';
+        } else if (data.valid_rows > 0) {
+            uploadBtn.style.display = 'inline-block';
+        } else {
+            uploadBtn.style.display = 'none';
+        }
+        validationDiv.innerHTML = html;
+        validationDiv.style.display = 'block';
+    }
+
+    if (uploadForm && validateBtn && uploadBtn && validationDiv) {
         uploadBtn.style.display = 'none';
         validateBtn.disabled = false;
+
         validateBtn.addEventListener('click', function() {
             const fileInput = document.getElementById('tenantsFile');
             const file = fileInput.files[0];
-            if (!file) {
-                alert('Please select a file');
+            if (!isValidFile(file)) {
+                alert('Please select a valid CSV or XLSX file');
                 return;
             }
-            const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-            if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
-                alert('Please upload a CSV or XLSX file');
-                return;
-            }
+
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            formData.append('csrfmiddlewaretoken', getCookie('csrftoken'));
             formData.append('validate_only', '1');
+
             validationDiv.style.display = 'block';
             validationDiv.innerHTML = 'Validating...';
             uploadBtn.style.display = 'none';
+
             fetch('/tenants/upload/', {
                 method: 'POST',
                 headers: {
@@ -304,46 +358,31 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    let html = `<div class="alert alert-info">Validation complete.<br>Valid rows: <b>${data.valid_rows}</b><br>Invalid rows: <b>${data.invalid_rows}</b></div>`;
-                    if (data.errors && data.errors.length) {
-                        html += '<ul class="list-group">';
-                        data.errors.forEach(err => {
-                            html += `<li class="list-group-item list-group-item-danger">${err}</li>`;
-                        });
-                        html += '</ul>';
-                        uploadBtn.style.display = 'none';
-                    } else if (data.valid_rows > 0) {
-                        uploadBtn.style.display = 'inline-block';
-                    } else {
-                        uploadBtn.style.display = 'none';
-                    }
-                    validationDiv.innerHTML = html;
+                    showValidationResult(data);
                 } else {
                     validationDiv.innerHTML = `<div class="alert alert-danger">${data.message || 'Validation failed.'}</div>`;
                     uploadBtn.style.display = 'none';
                 }
             })
-            .catch(error => {
+            .catch(() => {
                 validationDiv.innerHTML = '<div class="alert alert-danger">Error validating file.</div>';
+                uploadBtn.style.display = 'none';
             });
         });
-        // Upload handler
+
         uploadForm.addEventListener('submit', function(e) {
             e.preventDefault();
             const fileInput = document.getElementById('tenantsFile');
             const file = fileInput.files[0];
-            if (!file) {
-                alert('Please select a file');
+            if (!isValidFile(file)) {
+                alert('Please select a valid CSV or XLSX file');
                 return;
             }
-            const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-            if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
-                alert('Please upload a CSV or XLSX file');
-                return;
-            }
+
             const formData = new FormData();
             formData.append('file', file);
-            formData.append('csrfmiddlewaretoken', document.querySelector('[name=csrfmiddlewaretoken]').value);
+            formData.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+
             fetch('/tenants/upload/', {
                 method: 'POST',
                 headers: {
@@ -354,10 +393,18 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(response => response.json())
             .then(data => {
                 if (data.success) {
-                    alert(`Successfully uploaded ${data.count} tenants`);
-                    location.reload();
+                    let message = `Successfully uploaded ${data.count} tenants`;
+                    if (data.errors && data.errors.length) {
+                        message += '\n\nWarnings:\n' + data.errors.slice(0, 5).join('\n');
+                    }
+                    alert(message);
+                    window.location.reload();
                 } else {
-                    alert(data.message || 'Failed to upload tenants');
+                    let errorMsg = data.message || 'Failed to upload tenants';
+                    if (data.errors && data.errors.length) {
+                        errorMsg += '\n\n' + data.errors.slice(0, 5).join('\n');
+                    }
+                    alert(errorMsg);
                 }
             })
             .catch(error => {

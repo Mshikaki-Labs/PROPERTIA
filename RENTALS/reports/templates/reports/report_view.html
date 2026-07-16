@@ -13,18 +13,19 @@
             <div class="col-md-4">
                 <label class="small fw-bold text-muted">Property</label>
                 <select name="property" class="form-select bg-light border-0">
+                    <option value="">All Properties</option>
                     {% for p in properties %}
-                    <option value="{{ p.id }}">{{ p.name }}</option>
+                    <option value="{{ p.id }}" {% if selected_property|stringformat:"s" == p.id|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
                     {% endfor %}
                 </select>
             </div>
             <div class="col-md-3">
                 <label class="small fw-bold text-muted">Start Date</label>
-                <input type="text" name="start_date" class="form-control bg-light border-0 datepicker">
+                <input type="text" name="start_date" class="form-control bg-light border-0 datepicker" value="{{ selected_start_date|default:'' }}">
             </div>
             <div class="col-md-3">
                 <label class="small fw-bold text-muted">End Date</label>
-                <input type="text" name="end_date" class="form-control bg-light border-0 datepicker">
+                <input type="text" name="end_date" class="form-control bg-light border-0 datepicker" value="{{ selected_end_date|default:'' }}">
             </div>
             <div class="col-md-2 d-flex gap-2">
                 <button type="submit" class="btn btn-primary px-3"><i class="bi bi-file-earmark-text"></i> Generate</button>
@@ -89,7 +90,7 @@
                     <tr>
                         <td class="small">{{ inv.invoice_number }}</td>
                         <td>{{ inv.unit.name }}</td>
-                        <td>{{ inv.tenant.name }}</td>
+                        <td>{{ inv.tenant.first_name }} {{ inv.tenant.last_name }}</td>
                         <td>KSh {{ inv.amount }}</td>
                         <td><span class="badge bg-warning-subtle text-warning rounded-pill">{{ inv.status }}</span></td>
                     </tr>
@@ -99,6 +100,7 @@
                 </tbody>
             </table>
         </div>
+        {% include 'templates/includes/pagination.html' %}
     </div>
 </div>
 {% endblock %}

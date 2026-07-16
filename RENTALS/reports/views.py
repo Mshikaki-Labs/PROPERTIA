@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.contrib.auth.decorators import login_required
 
 # Create your views here.
 from django.shortcuts import render
@@ -10,7 +11,9 @@ from units.models import Unit
 from invoices.models import Invoice
 from payments.models import Payment
 from water_bills.models import WaterBill
+from PROPATIA.pagination import paginate_queryset
 
+@login_required
 def report_generator(request):
     # 1. Get Filters
     property_id = request.GET.get('property')
@@ -18,10 +21,10 @@ def report_generator(request):
     end_date = request.GET.get('end_date')
 
     # 2. Base Querysets
-    properties = Property.objects.all()
-    units = Unit.objects.all()
-    invoices = Invoice.objects.all()
-    payments = Payment.objects.all()
+    properties = Property.objects.filter(user=request.user)
+    units = Unit.objects.filter(user=request.user)
+    invoices = Invoice.objects.filter(user=request.user)
+    payments = Payment.objects.filter(user=request.user)
 
     if property_id:
         units = units.filter(property_id=property_id)
@@ -39,17 +42,20 @@ def report_generator(request):
     
     rent_expected = invoices.filter(type='Rent').aggregate(Sum('amount'))['amount__sum'] or 0
     rent_collected = payments.aggregate(Sum('amount'))['amount__sum'] or 0
-    water_total = WaterBill.objects.filter(unit__property_id=property_id).aggregate(Sum('amount'))['amount__sum'] or 0
+    water_total = WaterBill.objects.filter(user=request.user).aggregate(Sum('amount'))['amount__sum'] or 0
     
     collection_rate = 0
     if rent_expected > 0:
         collection_rate = (rent_collected / rent_expected) * 100
 
-    # 4. Recent Invoices
-    recent_invoices = invoices.order_by('-due_date')[:5]
+    recent_invoices = invoices.select_related('unit', 'tenant').order_by('-due_date')
+    pagination = paginate_queryset(request, recent_invoices)
 
     context = {
         'properties': properties,
+        'selected_property': property_id,
+        'selected_start_date': start_date,
+        'selected_end_date': end_date,
         'total_units': total_units,
         'occupied': occupied,
         'vacant': vacant,
@@ -57,6 +63,7 @@ def report_generator(request):
         'rent_expected': rent_expected,
         'rent_collected': rent_collected,
         'water_total': water_total,
-        'recent_invoices': recent_invoices,
+        'recent_invoices': pagination['page_obj'],
     }
+    context.update(pagination)
     return render(request, 'reports/report_view.html', context)
