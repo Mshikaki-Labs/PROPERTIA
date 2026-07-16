@@ -147,3 +147,6 @@ MEDIA_ROOT = BASE_DIR / 'media'
 # https://docs.djangoproject.com/en/6.0/ref/settings/#default-auto-field
 LOGIN_REDIRECT_URL = 'dashboard_home'  # Or whatever the name of your dashboard URL is
 LOGOUT_REDIRECT_URL = 'accounts:login'
+
+
+SECURE_CROSS_ORIGIN_OPENER_POLICY = None
