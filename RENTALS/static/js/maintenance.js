@@ -78,13 +78,16 @@ document.addEventListener('DOMContentLoaded', function() {
             messageDiv.style.display = 'none';
         });
     }
-<<<<<<< HEAD
-=======
+
+    function isCompletedPage() {
+        return window.location.pathname.includes('/maintenance/completed');
+    }
 
     document.querySelectorAll('.status-select').forEach(function(select) {
         select.addEventListener('change', function() {
             const id = this.getAttribute('data-id');
             const newStatus = this.value;
+            const row = this.closest('tr');
 
             fetch(`/maintenance/toggle-status/${id}/`, {
                 method: 'POST',
@@ -98,6 +101,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     this.setAttribute('data-status', data.status);
                     this.value = data.status;
+                    if ((isCompletedPage() && data.status === 'pending') || (!isCompletedPage() && data.status === 'completed')) {
+                        row.style.transition = 'opacity 0.4s';
+                        row.style.opacity = '0';
+                        setTimeout(function() {
+                            row.remove();
+                        }, 400);
+                    }
                 } else {
                     this.value = this.getAttribute('data-status');
                     alert(data.message || 'Failed to update status');
@@ -152,5 +162,4 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         });
     });
->>>>>>> boiling-hotel
 });
