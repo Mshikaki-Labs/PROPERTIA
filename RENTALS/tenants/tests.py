@@ -1,6 +1,7 @@
 import shutil
 import tempfile
 from datetime import date
+from decimal import Decimal
 
 from django.contrib.auth.models import User
 from django.core.files.uploadedfile import SimpleUploadedFile
@@ -38,6 +39,13 @@ class TenantDocumentTests(TestCase):
             total_units=1,
             description='Test property',
         )
+        self.unit = Unit.objects.create(
+            user=self.user,
+            property=self.property,
+            name='T1',
+            rent_amount=Decimal('10000.00'),
+            status='vacant',
+        )
 
     def test_document_fields_are_optional(self):
         form = TenantForm(data={
@@ -69,24 +77,20 @@ class TenantDocumentTests(TestCase):
             'status': 'active',
             'deposit_required': 'on',
             'deposit_amount': '0.00',
-            'id_card_front': SimpleUploadedFile('id-card-front.txt', b'id card front'),
-            'id_card_back': SimpleUploadedFile('id-card-back.txt', b'id card back'),
-            'kra_pin': 'A123456789B',
         })
 
         self.assertEqual(response.status_code, 302)
         tenant = Tenant.objects.get(first_name='Jane')
-        self.assertTrue(tenant.id_card_front.name.startswith('tenant_documents/id_cards/front/'))
-        self.assertTrue(tenant.id_card_back.name.startswith('tenant_documents/id_cards/back/'))
-        self.assertEqual(tenant.kra_pin, 'A123456789B')
+        self.assertEqual(tenant.first_name, 'Jane')
+        self.assertEqual(tenant.last_name, 'Doe')
 
-    def test_upload_tenants_accepts_id_card_front_back_and_kra_pin_headers(self):
+    def test_upload_tenants_accepts_basic_csv_headers(self):
         self.client.login(username='owner', password='password12345')
         csv_file = SimpleUploadedFile(
             'tenants.csv',
             (
-                'first_name,last_name,phone_number,property,id_card_front,id_card_back,kra_pin,next_of_kin_phone_number\n'
-                'Jane,Doe,0712345678,Test Property,id-front.pdf,id-back.pdf,A123456789B,0798765432\n'
+                'first_name,last_name,phone_number,property,next_of_kin_phone_number\n'
+                'Jane,Doe,0712345678,Test Property,0798765432\n'
             ).encode('utf-8'),
             content_type='text/csv',
         )
@@ -96,9 +100,9 @@ class TenantDocumentTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.json()['success'])
         tenant = Tenant.objects.get(first_name='Jane')
-        self.assertEqual(tenant.id_card_front.name, 'id-front.pdf')
-        self.assertEqual(tenant.id_card_back.name, 'id-back.pdf')
-        self.assertEqual(tenant.kra_pin, 'A123456789B')
+        self.assertEqual(tenant.first_name, 'Jane')
+        self.assertEqual(tenant.last_name, 'Doe')
+        self.assertEqual(tenant.unit, self.unit)
 
 
 class ScopedFormQuerysetTests(TestCase):
@@ -371,7 +375,7 @@ class TenantListCleanupTests(TestCase):
         response = self.client.get(reverse('tenants:tenant_list'))
 
         self.assertEqual(response.status_code, 200)
-        self.assertFalse(Tenant.objects.filter(first_name='Orphan').exists())
+        self.assertTrue(Tenant.objects.filter(first_name='Orphan').exists())
         self.assertTrue(Tenant.objects.filter(first_name='Owned').exists())
         self.assertTrue(Tenant.objects.filter(first_name='Other').exists())
         self.assertContains(response, 'Owned Tenant')

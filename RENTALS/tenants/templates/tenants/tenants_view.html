@@ -1,6 +1,10 @@
 {% extends 'templates/dashboard_base.html' %}
 {% load static %}
 
+{% block extra_js %}
+<script src="{% static 'js/tenants.js' %}" defer></script>
+{% endblock %}
+
 {% block content %}
 <div class="container-fluid py-4">
     <div class="d-flex justify-content-between align-items-center mb-4">
@@ -9,7 +13,7 @@
             <button type="button" id="deleteSelectedTenantsBtn" class="btn btn-danger" style="display: none;">
                 <i class="fas fa-trash me-1"></i> DELETE SELECTED
             </button>
-            <button class="btn btn-outline-dark">Upload Tenants</button>
+            <button class="btn btn-outline-dark" data-bs-toggle="modal" data-bs-target="#uploadTenantsModal">Upload Tenants</button>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTenantModal">+ Add Tenant</button>
         </div>
     </div>
@@ -140,5 +144,34 @@
         </div>
     </div>
 </div>
+
+<!-- Upload Tenants Modal -->
+<div class="modal fade" id="uploadTenantsModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-0">
+                <h5 class="modal-title fw-bold">Upload Tenants</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <form id="uploadTenantsForm" enctype="multipart/form-data">
+                {% csrf_token %}
+                <div class="modal-body px-4">
+                    <div id="tenantUploadValidation" class="alert d-none" role="alert"></div>
+                    <div class="mb-3">
+                        <label class="form-label fw-bold">CSV or XLSX File</label>
+                        <input type="file" id="tenantsFile" name="file" class="form-control" accept=".csv,.xlsx" required>
+                        <small class="text-muted d-block mt-2"><strong>Required Headers:</strong> FIRST_NAME, LAST_NAME, PHONE_NUMBER, PROPERTY</small>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 px-4 pb-4">
+                    <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" id="validateTenantsBtn" class="btn btn-secondary">Validate</button>
+                    <button type="button" id="uploadTenantsBtn" class="btn btn-primary" style="display:none;">Upload</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
 {% endblock %}
  

@@ -1,4 +1,6 @@
 from datetime import date
+import csv
+import io
 
 from django.shortcuts import render, redirect, get_object_or_404
 from django.http import JsonResponse, HttpResponse
@@ -75,8 +77,9 @@ def tenant_ledger(request, pk):
 
     invoices = Invoice.objects.filter(tenant=tenant).select_related('unit').order_by('due_date', 'id')
     payments = Payment.objects.filter(tenant=tenant).select_related('unit').order_by('date', 'id')
+    tenant_property = tenant.unit.property if tenant.unit else None
     property_tenants = Tenant.objects.filter(
-        unit__property__in=accessible_props,
+        unit__property=tenant_property,
     ).select_related('unit').order_by('unit__name', 'last_name', 'first_name')
 
     ledger_entries = []
@@ -165,12 +168,141 @@ def edit_tenant(request, pk):
 
 @login_required
 def upload_tenants(request):
-    """Accept tenant uploads and return a JSON response."""
-    if request.method != 'POST':
-        return JsonResponse({'success': False, 'message': 'Invalid request'})
+    """Upload tenants from CSV or XLSX file"""
+    def normalize_header(header):
+        return ' '.join(
+            str(header)
+            .replace('\ufeff', '')
+            .replace('*', '')
+            .replace('\\', '')
+            .lower()
+            .replace('_', ' ')
+            .split()
+        )
 
-    uploaded_file = request.FILES.get('file')
-    if not uploaded_file:
-        return JsonResponse({'success': False, 'message': 'No file uploaded'})
+    def get_row_value(row, *headers):
+        for header in headers:
+            value = row.get(normalize_header(header))
+            if value is not None and str(value).strip() != '':
+                return value
+        return None
 
-    return JsonResponse({'success': True, 'message': 'Upload received'})
+    def normalize_upload_row(headers, values):
+        row = {}
+        for idx, header in enumerate(headers):
+            normalized_header = normalize_header(header)
+            if not normalized_header:
+                continue
+            value = values[idx] if idx < len(values) else None
+            current_value = row.get(normalized_header)
+            if current_value is None or str(current_value).strip() == '':
+                row[normalized_header] = value
+        return row
+
+    if 'file' not in request.FILES:
+        return JsonResponse({'success': False, 'message': 'No file provided'})
+
+    file = request.FILES['file']
+    filename = file.name.lower()
+    validate_only = request.POST.get('validate_only') == '1'
+
+    try:
+        rows = []
+
+        if filename.endswith('.csv'):
+            content = file.read().decode('utf-8-sig')
+            sample = content[:2048]
+            try:
+                dialect = csv.Sniffer().sniff(sample, delimiters=',\t;')
+            except csv.Error:
+                dialect = csv.excel_tab if '\t' in sample else csv.excel
+            reader = csv.reader(content.splitlines(), dialect=dialect)
+            headers = next(reader, [])
+            for line in reader:
+                if any(str(v).strip() for v in line):
+                    rows.append(normalize_upload_row(headers, line))
+        elif filename.endswith('.xlsx'):
+            try:
+                from openpyxl import load_workbook
+            except ImportError:
+                return JsonResponse({'success': False, 'message': 'openpyxl is not installed. Please use CSV format or contact admin.'})
+            wb = load_workbook(io.BytesIO(file.read()), data_only=True)
+            ws = wb.active
+            headers = [cell.value for cell in ws[1]]
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                if any(v is not None and str(v).strip() != '' for v in row):
+                    rows.append(normalize_upload_row(headers, list(row)))
+        else:
+            return JsonResponse({'success': False, 'message': 'Invalid file format. Please use CSV or XLSX'})
+
+        if not rows:
+            return JsonResponse({'success': False, 'message': 'File is empty'})
+
+        accessible_props = get_accessible_properties(request.user)
+        created_count = 0
+        errors = []
+
+        for idx, row in enumerate(rows, start=2):
+            try:
+                first_name = get_row_value(row, 'first name', 'firstname', 'first')
+                last_name = get_row_value(row, 'last name', 'lastname', 'last')
+                phone_number = get_row_value(row, 'phone number', 'phone', 'phone_number')
+                property_name = get_row_value(row, 'property')
+                next_of_kin_name = get_row_value(row, 'next of kin name', 'next_of_kin', 'kin name')
+                next_of_kin_phone = get_row_value(row, 'next of kin phone', 'next_of_kin_phone_number', 'kin phone')
+                description = get_row_value(row, 'description')
+
+                if not first_name or not last_name or not phone_number or not property_name:
+                    errors.append(f'Row {idx}: Missing required fields (first_name, last_name, phone_number, property)')
+                    continue
+
+                property_obj = accessible_props.filter(name__iexact=str(property_name).strip()).first()
+                if not property_obj:
+                    errors.append(f'Row {idx}: Property "{property_name}" not found or not accessible')
+                    continue
+
+                unit = Unit.objects.filter(property=property_obj, status='vacant').first()
+                if not unit:
+                    errors.append(f'Row {idx}: No vacant unit available in property "{property_name}"')
+                    continue
+
+                tenant_data = {
+                    'unit': unit,
+                    'first_name': str(first_name).strip(),
+                    'last_name': str(last_name).strip(),
+                    'phone_number': str(phone_number).strip(),
+                    'next_of_kin_name': str(next_of_kin_name).strip() if next_of_kin_name else '',
+                    'next_of_kin_phone_number': str(next_of_kin_phone).strip() if next_of_kin_phone else '',
+                    'description': str(description).strip() if description else '',
+                    'status': 'active',
+                    'deposit_required': False,
+                    'deposit_amount': 0,
+                }
+
+                if validate_only:
+                    created_count += 1
+                else:
+                    Tenant.objects.create(**tenant_data)
+                    created_count += 1
+
+            except ValueError as ve:
+                errors.append(f'Row {idx}: Invalid data format - {str(ve)}')
+            except Exception as e:
+                errors.append(f'Row {idx}: {str(e)}')
+
+        message = f'Successfully processed {created_count} tenants'
+        if errors:
+            message += f'. {len(errors)} errors: ' + '; '.join(errors[:3])
+
+        response = {
+            'success': created_count > 0 or not errors,
+            'count': created_count,
+            'message': message,
+            'errors': errors,
+            'invalid_rows': len(errors),
+            'valid_rows': created_count,
+        }
+        return JsonResponse(response)
+
+    except Exception as e:
+        return JsonResponse({'success': False, 'message': f'Error processing file: {str(e)}'})

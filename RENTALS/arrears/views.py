@@ -61,6 +61,7 @@ def sync_user_arrears(user):
         status='pending',
     ).exclude(invoice_id__in=active_invoice_ids)
     for arrears_record in resolved_records:
+        arrears_record.amount_due = 0
         arrears_record.mark_resolved()
 
 
@@ -94,12 +95,12 @@ def arrears_report(request):
     if status_filter and status_filter != 'all':
         arrears_records = arrears_records.filter(status=status_filter)
 
-    total_arrears_amount = arrears_records.aggregate(total=Sum('amount_due'))['total'] or 0
+    total_arrears_amount = arrears_records.filter(status='pending').aggregate(total=Sum('amount_due'))['total'] or 0
     total_records = arrears_records.count()
 
     monthly_groups = OrderedDict()
     tenant_running_totals = {}
-    monthly_source = arrears_records.order_by('tenant__last_name', 'tenant__first_name', 'invoice__due_date', 'id')
+    monthly_source = arrears_records.filter(status='pending').order_by('tenant__last_name', 'tenant__first_name', 'invoice__due_date', 'id')
     for record in monthly_source:
         month_key = record.invoice.due_date.replace(day=1)
         key = (record.tenant_id, record.unit_id, month_key)
