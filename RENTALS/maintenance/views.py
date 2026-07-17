@@ -36,9 +36,6 @@ def create_maintenance(request):
             return JsonResponse({'success': True, 'message': 'Maintenance record added successfully'})
         return JsonResponse({'success': False, 'message': 'Invalid data', 'errors': form.errors}, status=400)
     return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
-<<<<<<< HEAD
-=======
-
 
 @login_required
 def toggle_status(request, pk):
@@ -88,4 +85,3 @@ def completed_maintenance(request):
     }
     context.update(pagination)
     return render(request, 'maintenance/completed_maintenance.html', context)
->>>>>>> boiling-hotel
