@@ -22,4 +22,10 @@ app_name = 'maintenance'
 urlpatterns = [
     path('', views.index, name='maintenance_home'),
     path('create/', views.create_maintenance, name='create_maintenance'),
+<<<<<<< HEAD
+=======
+    path('toggle-status/<int:pk>/', views.toggle_status, name='toggle_status'),
+    path('attach-receipt/<int:pk>/', views.attach_receipt, name='attach_receipt'),
+    path('completed/', views.completed_maintenance, name='completed_maintenance'),
+>>>>>>> boiling-hotel
 ]

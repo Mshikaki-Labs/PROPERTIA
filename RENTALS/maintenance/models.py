@@ -17,6 +17,10 @@ class Maintenance(models.Model):
     description = models.TextField()
     amount = models.DecimalField(max_digits=12, decimal_places=2)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+<<<<<<< HEAD
+=======
+    receipt = models.FileField(upload_to='maintenance_receipts/', blank=True, null=True)
+>>>>>>> boiling-hotel
 
     def __str__(self):
         return f"Maintenance: {self.property.name} - {self.description}"

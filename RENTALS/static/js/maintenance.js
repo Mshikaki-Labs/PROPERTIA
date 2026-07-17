@@ -78,4 +78,79 @@ document.addEventListener('DOMContentLoaded', function() {
             messageDiv.style.display = 'none';
         });
     }
+<<<<<<< HEAD
+=======
+
+    document.querySelectorAll('.status-select').forEach(function(select) {
+        select.addEventListener('change', function() {
+            const id = this.getAttribute('data-id');
+            const newStatus = this.value;
+
+            fetch(`/maintenance/toggle-status/${id}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                    'X-Requested-With': 'XMLHttpRequest'
+                }
+            })
+            .then(async response => {
+                const data = await response.json();
+                if (data.success) {
+                    this.setAttribute('data-status', data.status);
+                    this.value = data.status;
+                } else {
+                    this.value = this.getAttribute('data-status');
+                    alert(data.message || 'Failed to update status');
+                }
+            })
+            .catch(error => {
+                this.value = this.getAttribute('data-status');
+                alert('An error occurred: ' + (error.message || error));
+            });
+        });
+    });
+
+    document.querySelectorAll('.receipt-form').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const id = this.getAttribute('data-id');
+            const formData = new FormData(this);
+            formData.append('csrfmiddlewaretoken', getCookie('csrftoken'));
+
+            fetch(`/maintenance/attach-receipt/${id}/`, {
+                method: 'POST',
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(async response => {
+                const data = await response.json();
+                const messageDiv = document.getElementById(`receiptMessage${id}`);
+                if (data.success) {
+                    messageDiv.className = 'alert alert-success';
+                    messageDiv.textContent = data.message;
+                    messageDiv.style.display = 'block';
+                    setTimeout(function() {
+                        const modalEl = document.getElementById(`receiptModal${id}`);
+                        const modal = bootstrap.Modal.getInstance(modalEl);
+                        modal.hide();
+                        messageDiv.style.display = 'none';
+                        window.location.reload();
+                    }, 1000);
+                } else {
+                    messageDiv.className = 'alert alert-danger';
+                    messageDiv.textContent = data.message || 'Failed to attach receipt';
+                    messageDiv.style.display = 'block';
+                }
+            })
+            .catch(error => {
+                const messageDiv = document.getElementById(`receiptMessage${id}`);
+                messageDiv.className = 'alert alert-danger';
+                messageDiv.textContent = 'An error occurred: ' + (error.message || error);
+                messageDiv.style.display = 'block';
+            });
+        });
+    });
+>>>>>>> boiling-hotel
 });

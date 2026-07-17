@@ -3,10 +3,21 @@ from properties.models import Property
 
 
 def get_accessible_properties(user):
-    """Return properties the user owns OR has been granted access to."""
-    return Property.objects.filter(
+    """Return properties the user owns OR has been granted access to.
+    Admins and landlords can access all properties when they have no owned/granted access."""
+    accessible = Property.objects.filter(
         Q(user=user) | Q(granted_accesses__user=user)
     ).distinct()
+    if accessible.exists():
+        return accessible
+    if user.is_authenticated:
+        try:
+            from .models import Profile
+            if user.profile.role in [Profile.ADMIN, Profile.LANDLORD]:
+                return Property.objects.all()
+        except (Profile.DoesNotExist, AttributeError):
+            pass
+    return Property.objects.none()
 
 
 def has_property_access(user, property_obj):

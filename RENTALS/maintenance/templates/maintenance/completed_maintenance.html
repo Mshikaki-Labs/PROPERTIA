@@ -60,11 +60,14 @@
                         <td>{{ m.description }}</td>
                         <td>{{ m.amount }}</td>
                         <td>
+<<<<<<< HEAD
                             <button class="btn btn-sm status-btn btn-success"
                                     data-id="{{ m.id }}"
                                     data-status="{{ m.status }}">
                                 Completed
                             </button>
+=======
+>>>>>>> boiling-hotel
                             <select class="form-select form-select-sm status-select" data-id="{{ m.id }}" data-status="{{ m.status }}">
                                 <option value="pending" {% if m.status == 'pending' %}selected{% endif %}>Pending</option>
                                 <option value="completed" {% if m.status == 'completed' %}selected{% endif %}>Completed</option>
@@ -118,4 +121,8 @@
     </div>
     {% endfor %}
 </div>
+<<<<<<< HEAD
 {% endblock %}
+=======
+{% endblock %}
+>>>>>>> boiling-hotel
