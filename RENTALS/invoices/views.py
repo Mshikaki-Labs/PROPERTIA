@@ -37,6 +37,13 @@ def invoice_list(request):
             due_date = datetime.strptime(due_date_str, '%Y-%m-%d').date()
 
             property_obj = get_object_or_404(accessible_props, id=property_id)
+            if not Unit.objects.filter(id=unit_id, property=property_obj).exists():
+                return render(request, 'invoices/invoices_view.html', {
+                    'invoices': Invoice.objects.filter(unit__property__in=accessible_props).order_by('-due_date'),
+                    'properties': accessible_props,
+                    'units': Unit.objects.filter(property__in=accessible_props),
+                    'error': 'Selected unit does not belong to the selected property'
+                })
             unit = get_object_or_404(Unit, id=unit_id, property=property_obj)
             tenant = unit.get_assigned_tenant()
 

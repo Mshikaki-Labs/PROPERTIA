@@ -1,113 +1,172 @@
-    // 5. Tenant Upload Validation Logic
+document.addEventListener('DOMContentLoaded', function() {
+    // ======================
+    // TENANT UPLOAD LOGIC
+    // ======================
     const uploadForm = document.getElementById('uploadTenantsForm');
     const validateBtn = document.getElementById('validateTenantsBtn');
     const uploadBtn = document.getElementById('uploadTenantsBtn');
     const validationDiv = document.getElementById('tenantUploadValidation');
 
-    if (validateBtn && uploadForm) {
-        validateBtn.disabled = false;
-        validateBtn.addEventListener('click', function() {
-            const fileInput = document.getElementById('tenantsFile');
-            const file = fileInput.files[0];
-            if (!file) {
-                alert('Please select a file');
-                return;
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
             }
-            const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-            if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
-                alert('Please upload a CSV or XLSX file');
-                return;
-            }
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('csrfmiddlewaretoken', getCookie('csrftoken'));
-            formData.append('validate_only', '1');
-            validationDiv.style.display = 'block';
-            validationDiv.innerHTML = 'Validating...';
+        }
+        return cookieValue;
+    }
+
+    function showValidationMessage(type, title, messages = []) {
+        if (!validationDiv) return;
+        const alertClass = type === 'success' ? 'alert-success' : type === 'info' ? 'alert-info' : 'alert-danger';
+        const listHtml = messages.length
+            ? `<ul class="mb-0 mt-2">${messages.map(message => `<li>${message}</li>`).join('')}</ul>`
+            : '';
+        validationDiv.className = `alert ${alertClass}`;
+        validationDiv.innerHTML = `<div class="fw-semibold">${title}</div>${listHtml}`;
+        validationDiv.style.display = 'block';
+    }
+
+    function resetUploadActions() {
+        if (uploadBtn) {
             uploadBtn.style.display = 'none';
-            fetch('/tenants/upload/', {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
+            uploadBtn.disabled = false;
+            uploadBtn.textContent = 'Upload';
+        }
+        if (validateBtn) {
+            validateBtn.style.display = 'inline-block';
+            validateBtn.disabled = false;
+            validateBtn.textContent = 'Validate';
+        }
+        if (validationDiv) {
+            validationDiv.className = 'alert d-none';
+            validationDiv.innerHTML = '';
+        }
+    }
+
+    function getSelectedTenantFile() {
+        const fileInput = document.getElementById('tenantsFile');
+        const file = fileInput && fileInput.files ? fileInput.files[0] : null;
+        if (!file) {
+            showValidationMessage('error', 'Please select a file');
+            return null;
+        }
+        const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+        if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
+            showValidationMessage('error', 'Please upload a CSV or XLSX file');
+            return null;
+        }
+        return file;
+    }
+
+    function postTenantUpload(validateOnly) {
+        const file = getSelectedTenantFile();
+        if (!file) return;
+
+        const formData = new FormData();
+        formData.append('file', file);
+        formData.append('csrfmiddlewaretoken', uploadForm.querySelector('[name=csrfmiddlewaretoken]').value);
+        if (validateOnly) {
+            formData.append('validate_only', '1');
+        }
+
+        if (validateOnly && validateBtn) {
+            validateBtn.disabled = true;
+            validateBtn.textContent = 'Validating...';
+        }
+        if (!validateOnly && uploadBtn) {
+            uploadBtn.disabled = true;
+            uploadBtn.textContent = 'Uploading...';
+        }
+
+        fetch('/tenants/upload/', {
+            method: 'POST',
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest'
+            },
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            const detailMessages = data.errors ? data.errors.slice(0, 10) : [];
+
+            if (validateOnly) {
                 if (data.success) {
-                    let html = `<div class="alert alert-info">Validation complete.<br>Valid rows: <b>${data.valid_rows}</b><br>Invalid rows: <b>${data.invalid_rows}</b></div>`;
-                    if (data.errors && data.errors.length) {
-                        html += '<ul class="list-group">';
-                        data.errors.forEach(err => {
-                            html += `<li class="list-group-item list-group-item-danger">${err}</li>`;
-                        });
-                        html += '</ul>';
-                        uploadBtn.style.display = 'none';
-                    } else if (data.valid_rows > 0) {
+                    showValidationMessage('success', data.message || `Validation complete: ${data.valid_rows || 0} valid, ${data.invalid_rows || 0} invalid.`, detailMessages);
+                    if (uploadBtn) {
                         uploadBtn.style.display = 'inline-block';
-                    } else {
-                        uploadBtn.style.display = 'none';
+                        uploadBtn.disabled = false;
+                        uploadBtn.textContent = 'Upload';
                     }
-                    validationDiv.innerHTML = html;
+                    if (validateBtn) validateBtn.style.display = 'none';
                 } else {
-                    validationDiv.innerHTML = `<div class="alert alert-danger">${data.message || 'Validation failed.'}</div>`;
-                    uploadBtn.style.display = 'none';
-                }
-            })
-            .catch(error => {
-                validationDiv.innerHTML = '<div class="alert alert-danger">Error validating file.</div>';
-                uploadBtn.style.display = 'none';
-            });
-        });
-        // Upload handler
-        uploadBtn.addEventListener('click', function(e) {
-            e.preventDefault();
-            if (uploadBtn.style.display === 'none') return;
-            const fileInput = document.getElementById('tenantsFile');
-            const file = fileInput.files[0];
-            if (!file) {
-                alert('Please select a file');
-                return;
-            }
-            const validTypes = ['text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
-            if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx')) {
-                alert('Please upload a CSV or XLSX file');
-                return;
-            }
-            const formData = new FormData();
-            formData.append('file', file);
-            formData.append('csrfmiddlewaretoken', getCookie('csrftoken'));
-            fetch('/tenants/upload/', {
-                method: 'POST',
-                headers: {
-                    'X-Requested-With': 'XMLHttpRequest'
-                },
-                body: formData
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.success) {
-                    let message = `Successfully uploaded ${data.count} tenants`;
-                    if (data.errors && data.errors.length) {
-                        message += '\n\nWarnings:\n' + data.errors.slice(0, 5).join('\n');
+                    showValidationMessage('error', data.message || 'Validation failed', detailMessages);
+                    if (uploadBtn) uploadBtn.style.display = 'none';
+                    if (validateBtn) {
+                        validateBtn.disabled = false;
+                        validateBtn.textContent = 'Validate';
                     }
-                    alert(message);
+                }
+                return;
+            }
+
+            if (data.success) {
+                showValidationMessage('success', data.message || `Successfully uploaded ${data.count} tenants`, detailMessages);
+                setTimeout(function() {
                     window.location.reload();
-                } else {
-                    let errorMsg = data.message || 'Failed to upload tenants';
-                    if (data.errors && data.errors.length) {
-                        errorMsg += '\n\n' + data.errors.slice(0, 5).join('\n');
-                    }
-                    alert(errorMsg);
+                }, 1500);
+            } else {
+                showValidationMessage('error', data.message || 'Failed to upload tenants', detailMessages);
+                if (uploadBtn) {
+                    uploadBtn.disabled = false;
+                    uploadBtn.textContent = 'Upload';
                 }
-            })
-            .catch(error => {
-                console.error('Error:', error);
-                alert('An error occurred while uploading tenants');
-            });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showValidationMessage('error', validateOnly ? 'An error occurred while validating tenants' : 'An error occurred while uploading tenants');
+            if (validateBtn) {
+                validateBtn.disabled = false;
+                validateBtn.textContent = 'Validate';
+            }
+            if (uploadBtn) {
+                uploadBtn.disabled = false;
+                uploadBtn.textContent = 'Upload';
+            }
         });
     }
-document.addEventListener('DOMContentLoaded', function() {
+
+    if (uploadForm) {
+        uploadForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            postTenantUpload(true);
+        });
+
+        if (uploadBtn) {
+            uploadBtn.addEventListener('click', function() {
+                postTenantUpload(false);
+            });
+        }
+
+        const uploadModal = document.getElementById('uploadTenantsModal');
+        if (uploadModal) {
+            uploadModal.addEventListener('hidden.bs.modal', function() {
+                uploadForm.reset();
+                resetUploadActions();
+            });
+        }
+    }
+
+    // ======================
+    // MULTI-SELECT LOGIC
+    // ======================
     const selectAllBtn = document.getElementById('selectAllTenants');
     const deleteBtn = document.getElementById('deleteSelectedTenantsBtn');
 
