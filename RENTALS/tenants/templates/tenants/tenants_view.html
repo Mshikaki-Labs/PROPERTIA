@@ -6,6 +6,9 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h2>Tenants</h2>
         <div class="d-flex gap-2">
+            <button type="button" id="deleteSelectedTenantsBtn" class="btn btn-danger" style="display: none;">
+                <i class="fas fa-trash me-1"></i> DELETE SELECTED
+            </button>
             <button class="btn btn-outline-dark">Upload Tenants</button>
             <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#addTenantModal">+ Add Tenant</button>
         </div>
@@ -45,7 +48,7 @@
             <table class="table table-hover align-middle mb-0">
                 <thead class="bg-light">
                     <tr>
-                        <th class="ps-4"><input type="checkbox"></th>
+                        <th class="ps-4"><input type="checkbox" id="selectAllTenants" class="form-check-input"></th>
                         <th>Name</th>
                         <th>Property</th>
                         <th>Unit</th>
@@ -57,7 +60,7 @@
                 <tbody>
                     {% for tenant in tenants %}
                     <tr>
-                        <td class="ps-4"><input type="checkbox"></td>
+                        <td class="ps-4"><input type="checkbox" class="form-check-input tenant-checkbox" value="{{ tenant.id }}"></td>
                         <td>{{ tenant.first_name }} {{ tenant.last_name }}</td>
                         <td>{% if tenant.unit %}{{ tenant.unit.property.name }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
                         <td>{% if tenant.unit %}{{ tenant.unit.name }}{% else %}<span class="text-muted">-</span>{% endif %}</td>
