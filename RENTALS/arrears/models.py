@@ -23,6 +23,7 @@ class Arrears(models.Model):
     date_resolved = models.DateTimeField(null=True, blank=True)
     
     notes = models.TextField(blank=True, null=True)
+    updated_at = models.DateTimeField(auto_now=True)
     
     class Meta:
         unique_together = ('invoice', 'tenant')

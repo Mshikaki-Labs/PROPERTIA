@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 # Create your models here.
 from properties.models import Property
@@ -17,6 +18,8 @@ class WaterBill(models.Model):
     amount = models.DecimalField(max_digits=12, decimal_places=2, editable=False)
     due_date = models.DateField()
     status = models.CharField(max_length=10, default='Unpaid')
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
         self.consumption = self.current_reading - self.previous_reading
@@ -52,6 +55,7 @@ class WaterBillPayment(models.Model):
     date = models.DateField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='unclaimed')
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
         if not self.pk and self.balance == 0:

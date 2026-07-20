@@ -16,6 +16,7 @@ class Lease(models.Model):
 	deposit_held = models.DecimalField(max_digits=10, decimal_places=2, default=0)
 	is_active = models.BooleanField(default=True)
 	created_at = models.DateTimeField(default=timezone.now)
+	updated_at = models.DateTimeField(auto_now=True)
 
 	def save(self, *args, **kwargs):
 		# Rent snapshotting: only set monthly_rent on creation

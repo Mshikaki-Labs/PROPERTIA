@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 # Create your models here.
 import uuid
@@ -19,6 +20,8 @@ class Invoice(models.Model):
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default='Rent')
     due_date = models.DateField()
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='Unpaid')
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def save(self, *args, **kwargs):
         if not self.invoice_number:

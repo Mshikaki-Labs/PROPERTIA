@@ -36,10 +36,17 @@ def create_maintenance(request):
             return JsonResponse({'success': True, 'message': 'Maintenance record added successfully'})
         return JsonResponse({'success': False, 'message': 'Invalid data', 'errors': form.errors}, status=400)
     return JsonResponse({'success': False, 'message': 'Invalid request method'}, status=405)
-<<<<<<< HEAD
 
-=======
->>>>>>> test
+
+@login_required
+def delete_maintenance(request):
+    maintenance_ids = request.POST.getlist('maintenance_ids[]')
+    if maintenance_ids:
+        accessible_props = get_accessible_properties(request.user)
+        Maintenance.objects.filter(id__in=maintenance_ids, property__in=accessible_props).delete()
+        return JsonResponse({'success': True, 'message': f'{len(maintenance_ids)} maintenance record/s deleted successfully'})
+    return JsonResponse({'success': False, 'message': 'No maintenance records selected'})
+
 
 @login_required
 def toggle_status(request, pk):

@@ -4,12 +4,14 @@ import logging
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth import login, logout, authenticate
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth.models import User
 from django.contrib import messages
 from django.urls import reverse
 from django.utils import timezone
+from django.core.paginator import Paginator
 
 from .forms import InvitationAcceptForm, InvitationCreateForm, UserRegisterForm, UserUpdateForm, ProfileUpdateForm
-from .models import Invitation, Profile, PropertyAccess
+from .models import Invitation, Profile, PropertyAccess, AuditLog
 from django.http import JsonResponse
 from django.views.decorators.http import require_POST
 
@@ -170,3 +172,49 @@ def support_view(request):
 
 def password_change_done(request):
     return render(request, 'accounts/password_change_done.html', {'title': 'Password Changed'})
+
+
+@login_required
+def audit_log_view(request):
+    if not (request.user.is_superuser or (hasattr(request.user, 'profile') and request.user.profile.role in [Profile.ADMIN, Profile.LANDLORD])):
+        messages.error(request, 'Only admins and landlords can view audit logs.')
+        return redirect('dashboard_home')
+
+    logs = AuditLog.objects.select_related('user', 'user__profile').all()
+
+    user_id = request.GET.get('user')
+    action = request.GET.get('action')
+    model_name = request.GET.get('model')
+    start_date = request.GET.get('start_date')
+    end_date = request.GET.get('end_date')
+
+    if user_id:
+        logs = logs.filter(user_id=user_id)
+    if action:
+        logs = logs.filter(action=action)
+    if model_name:
+        logs = logs.filter(model_name=model_name)
+    if start_date:
+        logs = logs.filter(timestamp__date__gte=start_date)
+    if end_date:
+        logs = logs.filter(timestamp__date__lte=end_date)
+
+    logs = logs.order_by('-timestamp')
+    paginator = Paginator(logs, 25)
+    page_number = request.GET.get('page')
+    page_obj = paginator.get_page(page_number)
+
+    users_with_logs = User.objects.filter(id__in=AuditLog.objects.values_list('user_id', flat=True).distinct())
+
+    context = {
+        'logs': page_obj,
+        'title': 'Audit Log',
+        'action_choices': AuditLog.ACTION_CHOICES,
+        'users_with_logs': users_with_logs,
+        'selected_user': user_id or '',
+        'selected_action': action or '',
+        'selected_model': model_name or '',
+        'selected_start_date': start_date or '',
+        'selected_end_date': end_date or '',
+    }
+    return render(request, 'accounts/audit_log.html', context)

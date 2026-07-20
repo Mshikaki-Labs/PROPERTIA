@@ -163,3 +163,73 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     });
 });
+
+// ======================
+// DELETE MAINTENANCE FUNCTIONALITY
+// ======================
+
+(function() {
+    const maintenancePage = document.getElementById('maintenancePage');
+    const deleteMaintenanceUrl = maintenancePage ? maintenancePage.dataset.deleteUrl : '/maintenance/delete/';
+    const selectAllCheckbox = document.getElementById('selectAllCheckbox');
+    const maintenanceCheckboxes = document.querySelectorAll('.maintenance-checkbox');
+    const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+
+    if (selectAllCheckbox && maintenanceCheckboxes.length) {
+        selectAllCheckbox.addEventListener('change', function() {
+            maintenanceCheckboxes.forEach(checkbox => {
+                checkbox.checked = this.checked;
+            });
+            updateDeleteButton();
+        });
+
+        maintenanceCheckboxes.forEach(checkbox => {
+            checkbox.addEventListener('change', updateDeleteButton);
+        });
+
+        function updateDeleteButton() {
+            const anySelected = Array.from(maintenanceCheckboxes).some(cb => cb.checked);
+            deleteSelectedBtn.style.display = anySelected ? 'inline-block' : 'none';
+        }
+
+        deleteSelectedBtn.addEventListener('click', function() {
+            const selectedIds = Array.from(maintenanceCheckboxes)
+                .filter(cb => cb.checked)
+                .map(cb => cb.value);
+
+            if (selectedIds.length === 0) {
+                alert('Please select at least one maintenance record to delete');
+                return;
+            }
+
+            if (confirm(`Are you sure you want to delete ${selectedIds.length} maintenance record/s? This action cannot be undone.`)) {
+                if (!window.downloadSelectedRowsBeforeDelete('.maintenance-checkbox:checked', 'maintenance-before-delete')) return;
+
+                const formData = new FormData();
+                selectedIds.forEach(id => formData.append('maintenance_ids[]', id));
+
+                fetch(deleteMaintenanceUrl, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value || '',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert(data.message);
+                        location.reload();
+                    } else {
+                        alert(data.message || 'Failed to delete maintenance');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('An error occurred while deleting maintenance');
+                });
+            }
+        });
+    }
+})();

@@ -90,6 +90,36 @@ class PropertyAccess(models.Model):
         return f"{self.user.username} → {self.property.name}"
 
 
+class AuditLog(models.Model):
+    ACTION_CREATE = 'create'
+    ACTION_UPDATE = 'update'
+    ACTION_DELETE = 'delete'
+    ACTION_CHOICES = [
+        (ACTION_CREATE, 'Create'),
+        (ACTION_UPDATE, 'Update'),
+        (ACTION_DELETE, 'Delete'),
+    ]
+
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, db_index=True)
+    action = models.CharField(max_length=10, choices=ACTION_CHOICES, db_index=True)
+    model_name = models.CharField(max_length=100, db_index=True)
+    object_id = models.CharField(max_length=255)
+    object_repr = models.CharField(max_length=255)
+    timestamp = models.DateTimeField(auto_now_add=True, db_index=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    changes = models.JSONField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-timestamp']
+        indexes = [
+            models.Index(fields=['model_name', 'object_id']),
+            models.Index(fields=['user', 'timestamp']),
+        ]
+
+    def __str__(self):
+        return f"{self.user} {self.action} {self.model_name} #{self.object_id}"
+
+
 # Signals to handle profile creation/saving
 @receiver(post_save, sender=User)
 def create_user_profile(sender, instance, created, **kwargs):

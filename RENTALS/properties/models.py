@@ -1,5 +1,6 @@
 from django.db import models
 from django.contrib.auth.models import User
+from django.utils import timezone
 
 # Kenya Counties Choices
 KENYA_COUNTIES = [
@@ -63,7 +64,8 @@ class Property(models.Model):
     total_units = models.IntegerField(default=0)
     description = models.CharField(max_length=255)
     property_image = models.ImageField(upload_to='property_images/', blank=True, null=True)
-
+    created_at = models.DateTimeField(default=timezone.now)
+    updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return self.name
